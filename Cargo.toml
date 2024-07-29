@@ -1,0 +1,21 @@
+[package]
+name = "gem_plaquette"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "gem_plaquette"
+crate-type = ["cdylib"]
+
+[dependencies]
+thiserror = "1.0"
+bitvec = "1.0.1"
+ahash = "0.8.6"
+hashbrown = "0.14.3"
+indexmap = { version = ">=1.9, <3", features = ["rayon"] }
+rayon = "1.10"
+petgraph = "0.6.5"
+
+[dependencies.pyo3]
+version = "0.20.2"
+features = ["hashbrown", "extension-module"]
