@@ -20,5 +20,6 @@ mod mock;
 #[pymodule]
 fn gem_core(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<heavyhex::PyHeavyHexPlaquette>()?;
+    m.add_class::<heavyhex::PyQubit>()?;
     Ok(())
 }

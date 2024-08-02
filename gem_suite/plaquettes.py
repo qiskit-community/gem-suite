@@ -18,7 +18,7 @@ import subprocess
 import tempfile
 import io
 
-from typing import cast, TYPE_CHECKING
+from typing import cast, TYPE_CHECKING, Iterator
 try:
     from PIL import Image  # type: ignore
     HAS_PILLOW = True
@@ -28,7 +28,7 @@ except ImportError:
 if TYPE_CHECKING:
     from PIL import Image  # type: ignore
 
-from gem_suite.gem_core import PyHeavyHexPlaquette
+from gem_suite.gem_core import PyHeavyHexPlaquette, PyQubit
 from qiskit.providers import BackendV2
 
 
@@ -43,6 +43,9 @@ class PlaquetteLattice:
         
     def plaquette(self, index: int | None) -> list[int]:
         return self.core.plaquettes[index]
+    
+    def qubits(self) -> Iterator[PyQubit]:
+        yield from self.core.qubits()
     
     def draw(self) -> Image:
         if not HAS_PILLOW:

@@ -55,6 +55,49 @@ lazy_static! {
 
 
 #[pyclass]
+/// Annotated qubit data to expose in Python domain.
+/// 
+/// # Attributes
+/// 
+/// * `index`: Qubit physical index.
+/// * `role`: Qubit role in [Site, Bond].
+/// * `group`: Two qubit gate parameterization grouping in [A, B].
+/// * `neighbors`: Neighboring qubits.
+pub struct PyQubit {
+    #[pyo3(get)]
+    index: usize,
+    #[pyo3(get)]
+    role: String,
+    #[pyo3(get)]
+    group: String,
+    #[pyo3(get)]
+    coordinate: Option<(usize, usize)>,
+    #[pyo3(get)]
+    neighbors: Vec<usize>,
+}
+
+#[pymethods]
+impl PyQubit {
+    pub fn __repr__(&self) -> String {
+        format!(
+            "PyQubit(index={}, role=\"{}\", group=\"{}\", coordinate={}, neighbors={:?})",
+            self.index,
+            self.role,
+            self.group,
+            if let Some(c) = self.coordinate {format!("({}, {})", c.0, c.1)} else {format!("None")},
+            self.neighbors,
+        )
+    }
+}
+
+
+#[pyclass]
+/// Plaquette representation of heavy hex lattice devices.
+/// Graph node and edges are immediately annotated for GEM experiments.
+/// Qubits are classified into either site or bond type,
+/// and the site qubits are further classified into OpGroup A or B.
+/// Edges (qubit coupling) are classified into one of 6 scheduling groups 
+/// corresponding to different scheduling pattern of entangling instructions.
 pub struct PyHeavyHexPlaquette {
     #[pyo3(get)]
     pub plaquettes: Vec<Vec<usize>>,
@@ -63,6 +106,13 @@ pub struct PyHeavyHexPlaquette {
 
 #[pymethods]
 impl PyHeavyHexPlaquette{
+
+    /// Create new PyHeavyHexPlaquette object from the device coupling map.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `coupling_map`: Coupling pairs, e.g. [(0, 1), (1, 0), (1, 2), ...],
+    ///     which can be either uni or bi-directional.
     #[new]
     pub fn new(coupling_map: Vec<(usize, usize)>) -> Self {
         let (qubits, connectivity) = to_undirected(&coupling_map);
@@ -122,6 +172,8 @@ impl PyHeavyHexPlaquette{
         ret
     }
 
+    /// Return dot script representing the annotated lattice 
+    /// to digest with the graphviz drawer.
     pub fn to_dot(&self, py: Python) -> PyResult<Option<PyObject>> {
         let mut buf = Vec::<u8>::new();
         writeln!(&mut buf, "graph {{").unwrap();
@@ -138,6 +190,37 @@ impl PyHeavyHexPlaquette{
         Ok(Some(
             PyString::new_bound(py, str::from_utf8(&buf)?).to_object(py)
         ))
+    }
+
+    /// Return annotated qubits from the plaquette.
+    pub fn qubits(&self) -> Vec<PyQubit> {
+        let mut nodes: Vec<_> = self.graph
+            .node_indices()
+            .map(|n| {
+                let neighbors: Vec<_> = self.graph
+                    .neighbors(n)
+                    .map(|m| self.graph.node_weight(m).unwrap().index)
+                    .collect();
+                let weight = self.graph.node_weight(n).unwrap();
+                PyQubit {
+                    index: weight.index,
+                    role: match weight.role {
+                        Some(QubitRole::Bond) => format!("Bond"),
+                        Some(QubitRole::Site) => format!("Site"),
+                        None => format!("None"),
+                    },
+                    group: match weight.group {
+                        Some(OpGroup::A) => format!("A"),
+                        Some(OpGroup::B) => format!("B"),
+                        None => format!("None"),
+                    },
+                    coordinate: weight.coordinate,
+                    neighbors,
+                }
+            })
+            .collect();
+        nodes.sort_unstable_by_key(|n| n.index);
+        nodes
     }
 }
 
@@ -158,7 +241,15 @@ impl PyHeavyHexPlaquette {
             .collect();
         if deg3nodes.len() == 0 {
             // When there is only one plaquette no degree 3 node exists.
-            // deg3nodes.push();
+            // In this case use top left.
+            let min_node = self.graph
+                .node_indices()
+                .min_by_key(|n| {
+                    let xy = self.graph.node_weight(*n).unwrap().coordinate.unwrap();
+                    xy.0 + xy.1
+                })
+                .unwrap();
+            deg3nodes.push(min_node);
         }
         for n in deg3nodes {
             let weight = self.graph.node_weight_mut(n).unwrap();

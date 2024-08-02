@@ -93,27 +93,21 @@ impl CouplingEdge {
         match self.group {
             Some(SchedulingGroup::E1) => {
                 options.push(format!("color=mediumseagreen"));
-                // options.push(format!("label=a"));
             },
             Some(SchedulingGroup::E2) => {
                 options.push(format!("color=thistle"));
-                // options.push(format!("label=b"));
             },
             Some(SchedulingGroup::E3) => {
                 options.push(format!("color=lightsalmon"));
-                // options.push(format!("label=c"));
             },
             Some(SchedulingGroup::E4) => {
                 options.push(format!("color=khaki"));
-                // options.push(format!("label=d"));
             },
             Some(SchedulingGroup::E5) => {
                 options.push(format!("color=dodgerblue"));
-                // options.push(format!("label=e"));
             },
             Some(SchedulingGroup::E6) => {
                 options.push(format!("color=mediumvioletred"));
-                // options.push(format!("label=f"));
             },
             None => {
                 options.push(format!("color=black"));                
