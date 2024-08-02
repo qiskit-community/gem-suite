@@ -1,0 +1,3 @@
+include requirements.txt
+include Cargo.toml
+recursive-include src *

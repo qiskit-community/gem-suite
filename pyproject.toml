@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools", "wheel", "setuptools-rust"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gem-suite"
+description = "Qiskit Experiments suite for generation of entanglement using measurements."
+version = "2024.0.0"
+requires-python = ">= 3.8"
+authors = [
+  {name = "Naoki Kanazawa", email = "knzwnao@jp.ibm.com"},
+]
+
+[tool.setuptools.packages.find]
+include = ["gem_suite", "gem_suite.*"]

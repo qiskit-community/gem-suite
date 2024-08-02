@@ -10,4 +10,15 @@
 // copyright notice, and modified files need to carry a notice indicating
 // that they have been altered from the originals.
 
+use pyo3::prelude::*;
+
 pub mod heavyhex;
+mod plaquette_model;
+mod mock;
+
+
+#[pymodule]
+fn gem_core(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_class::<heavyhex::PyHeavyHexPlaquette>()?;
+    Ok(())
+}

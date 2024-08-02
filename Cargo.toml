@@ -1,10 +1,10 @@
 [package]
-name = "gem_plaquette"
+name = "gem_core"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "gem_plaquette"
+name = "gem_core"
 crate-type = ["cdylib"]
 
 [dependencies]
@@ -15,7 +15,8 @@ hashbrown = "0.14.3"
 indexmap = { version = ">=1.9, <3", features = ["rayon"] }
 rayon = "1.10"
 petgraph = "0.6.5"
+lazy_static = "1.4"
 
 [dependencies.pyo3]
-version = "0.20.2"
-features = ["hashbrown", "extension-module"]
+version = "0.21.2"
+features = ["extension-module", "hashbrown"]
