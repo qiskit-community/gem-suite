@@ -1,1 +1,2 @@
 qiskit >= 1.0
+qiskit-experiments >= 0.7

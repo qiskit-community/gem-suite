@@ -12,3 +12,4 @@
 # under the License.
 
 from .plaquettes import PlaquetteLattice
+from .experiments import GemExperiment

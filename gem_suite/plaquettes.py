@@ -50,6 +50,22 @@ class PlaquetteLattice:
         else:
             cmap = list(backend.coupling_map)
         self.core = PyHeavyHexLattice(cmap)
+        self.coupling_map = cmap
+
+    @classmethod
+    def from_coupling_map(cls, coupling_map: list[tuple[int, int]]):
+        """Build plaquette lattice from coupling map.
+        
+        Args:
+            coupling_map: List of connected qubit pair.
+        
+        Returns:
+            New PlaquetteLattice instance.
+        """
+        new_lattice = PyHeavyHexLattice(coupling_map)
+        instance = object.__new__(PlaquetteLattice)
+        instance.core = new_lattice
+        return instance
     
     def qubits(self) -> Iterator[PyQubit]:
         """Yield annotated qubit dataclasses."""
@@ -66,6 +82,14 @@ class PlaquetteLattice:
     def draw_plaquettes(self) -> Image:
         """Draw coupling graph with plaquette in the lattice."""
         return _to_image(self.core.plaquette_graph_dot(), "neato")
+    
+    def draw_sites(self) -> Image:
+        """Draw coupling graph with site qubits in the lattice."""
+        return _to_image(self.core.site_graph_dot(), "fdp")
+
+    def draw_snake(self) -> Image:
+        """Draw snake coupling graph with site qubits in the lattice."""
+        return _to_image(self.core.snake_graph_dot(), "fdp")
     
     def filter(self, includes: list[int]) -> PlaquetteLattice:
         """Create new plaquette lattice instance with subset of plaquettes.

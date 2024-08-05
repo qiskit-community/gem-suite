@@ -271,6 +271,26 @@ impl PyHeavyHexLattice{
         ))
     }
 
+    /// Return dot script representing the site qubit graph 
+    /// to create image with the graphviz drawer.
+    pub fn site_graph_dot(&self, py: Python) -> PyResult<Option<PyObject>> {
+        let site_graph = self.site_graph();
+        let buf = ungraph_to_dot(&site_graph);
+        Ok(Some(
+            PyString::new_bound(py, str::from_utf8(&buf)?).to_object(py)
+        ))
+    }
+
+    /// Return dot script representing the snake site qubit graph 
+    /// to create image with the graphviz drawer.
+    pub fn snake_graph_dot(&self, py: Python) -> PyResult<Option<PyObject>> {
+        let snake_graph = self.snake_graph();
+        let buf = ungraph_to_dot(&snake_graph);
+        Ok(Some(
+            PyString::new_bound(py, str::from_utf8(&buf)?).to_object(py)
+        ))
+    }
+
     /// Return annotated qubit dataclasses in this lattice.
     pub fn qubits(&self) -> Vec<PyQubit> {
         let mut nodes: Vec<_> = self.qubit_graph
@@ -410,6 +430,15 @@ impl PyHeavyHexLattice {
         ret.annotate_nodes();
         ret.annotate_edges();
         ret
+    }
+
+    pub(crate) fn site_graph(&self) -> StableUnGraph<QubitNode, SiteEdge> {
+        build_site_graph(&self.qubit_graph)
+    }
+
+    pub(crate) fn snake_graph(&self) -> StableUnGraph<QubitNode, SiteEdge> {
+        let site_graph = build_site_graph(&self.qubit_graph);
+        build_snake_graph(&site_graph)
     }
 
     fn annotate_nodes(&mut self) -> () {
@@ -678,6 +707,93 @@ pub(crate) fn build_plaquette_graph(
 }
 
 
+pub(crate) fn build_site_graph(
+    graph: &StableUnGraph<QubitNode, QubitEdge>
+) -> StableUnGraph<QubitNode, SiteEdge> {
+    let site_nodes = graph
+        .node_weights()
+        .filter_map(|w| {
+            if w.role == Some(QubitRole::Site) {
+                Some(w.to_owned())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut node_map = HashMap::<usize, NodeIndex>::with_capacity(site_nodes.len());
+    let mut site_graph = StableUnGraph::<QubitNode, SiteEdge>::with_capacity(site_nodes.len(), graph.node_count() - site_nodes.len());
+    for node in site_nodes {
+        let qindex = node.index;
+        let nindex = site_graph.add_node(node);
+        node_map.insert(qindex, nindex);
+    }
+    for ni in graph.node_indices() {
+        let weight = graph.node_weight(ni).unwrap();
+        if weight.role != Some(QubitRole::Bond) {
+            continue;
+        }
+        let neighbors = graph
+            .neighbors(ni)
+            .map(|n| graph.node_weight(n).unwrap().index)
+            .collect::<Vec<_>>();
+        if neighbors.len() != 2 {
+            panic!("Bond qubit doesn't have two site neighbors. Check if the lattice is heavy hex.")
+        }
+        let n0 = node_map[&neighbors[0]];
+        let n1 = node_map[&neighbors[1]];
+        site_graph.add_edge(n0, n1, SiteEdge { s1: neighbors[0], s2: neighbors[1], bond: weight.index});
+    }
+    site_graph
+}
+
+
+pub(crate) fn build_snake_graph(
+    graph: &StableUnGraph<QubitNode, SiteEdge>
+) -> StableUnGraph<QubitNode, SiteEdge> {
+    let mut snake_graph = graph.clone();
+    // Determine first edge (left-most or right-most) to keep
+    let mut offset = 0_usize;
+    let mut bond_by_row = std::collections::BTreeMap::<usize, Vec<(usize, EdgeIndex)>>::new();
+    for ei in graph.edge_indices() {
+        if let Some(sites) = graph.edge_endpoints(ei) {
+            let xy0 = graph.node_weight(sites.0).unwrap().coordinate.unwrap();
+            let xy1 = graph.node_weight(sites.1).unwrap().coordinate.unwrap();
+            if (xy0.0 == xy1.0) & (xy0.1 != xy1.1) {
+                // Edge connecting different rows
+                let row_y = std::cmp::min(xy0.1, xy1.1);
+                if let Some(edges) = bond_by_row.get_mut(&row_y) {
+                    edges.push((xy0.0, ei));
+                } else {
+                    bond_by_row.insert(row_y, vec![(xy0.0, ei)]);
+                }
+            }
+        }
+    }
+    let pos_eidx_tup = bond_by_row.values().collect::<Vec<_>>();
+    if pos_eidx_tup.len() > 1 {
+        let center_row0 = pos_eidx_tup[0].iter().fold(0, |acc, v| acc + v.0) as f64 / pos_eidx_tup[0].len() as f64;
+        let center_row1 = pos_eidx_tup[1].iter().fold(0, |acc, v| acc + v.0) as f64 / pos_eidx_tup[1].len() as f64;
+        if center_row0 > center_row1 {
+            offset = 1;
+        }
+    }
+    // Remove vertical edges to make snake
+    for (ri, row) in pos_eidx_tup.into_iter().enumerate() {
+        let keep = if (ri + offset) % 2 == 0 {
+            row.iter().min_by_key(|e| e.0).unwrap()
+        } else {
+            row.iter().max_by_key(|e| e.0).unwrap()
+        };
+        for edge in row {
+            if edge.1 != keep.1 {
+                snake_graph.remove_edge(edge.1);
+            }
+        }
+    }
+    snake_graph
+}
+
+
 fn assign_coordinate_recursive(
     node: &NodeIndex,
     graph: &mut StableUnGraph<QubitNode, QubitEdge>,
@@ -909,7 +1025,7 @@ fn ungraph_to_dot<N: WriteDot, E: WriteDot>(
     let mut buf = Vec::<u8>::new();
     writeln!(&mut buf, "graph {{").unwrap();
     writeln!(&mut buf, "node [fontname=\"Consolas\", fontsize=8.0, height=0.7];").unwrap();
-    writeln!(&mut buf, "edge [fontname=\"Consolas\", penwidth=2.5];").unwrap();
+    writeln!(&mut buf, "edge [fontname=\"Consolas\", fontsize=8.0, penwidth=2.5];").unwrap();
     for node in graph.node_weights() {
         writeln!(&mut buf, "{}", node.to_dot()).unwrap();
     }

@@ -146,3 +146,17 @@ impl WriteDot for PlaquetteEdge {
         format!("{} -- {};", self.p0, self.p1)
     }
 }
+
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct SiteEdge {
+    pub s1: usize,
+    pub s2: usize,
+    pub bond: usize,
+}
+
+impl WriteDot for SiteEdge {
+    fn to_dot(&self) -> String {
+        format!("{} -- {} [label=\"Q{}\"];", self.s1, self.s2, self.bond)
+    }
+}

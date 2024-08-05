@@ -13,6 +13,7 @@
 use pyo3::prelude::*;
 
 pub mod heavyhex;
+pub mod heavyhex_decode;
 mod graph;
 mod mock;
 
