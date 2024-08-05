@@ -22,5 +22,6 @@ fn gem_core(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<heavyhex::PyHeavyHexLattice>()?;
     m.add_class::<heavyhex::PyQubit>()?;
     m.add_class::<heavyhex::PyPlaquette>()?;
+    m.add_class::<heavyhex::PyScheduledGate>()?;
     Ok(())
 }

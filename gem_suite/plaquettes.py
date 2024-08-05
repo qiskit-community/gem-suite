@@ -18,6 +18,7 @@ import subprocess
 import tempfile
 import io
 
+from collections import namedtuple
 from typing import cast, TYPE_CHECKING, Iterator
 try:
     from PIL import Image  # type: ignore
@@ -28,13 +29,22 @@ except ImportError:
 if TYPE_CHECKING:
     from PIL import Image  # type: ignore
 
-from gem_suite.gem_core import PyHeavyHexLattice, PyQubit, PyPlaquette
+from gem_suite.gem_core import PyHeavyHexLattice, PyQubit, PyPlaquette, PyScheduledGate
 from qiskit.providers import BackendV2
 
 
+ScheduledGate = namedtuple("ScheduledGate", ["q0", "q1", "group"])
+
+
 class PlaquetteLattice:
+    """Plaquette representation of Qiskit Backend."""
 
     def __init__(self, backend: BackendV2):
+        """Create new plaquette lattice from backend.
+        
+        Args:
+            backend: Qiskit Backend.
+        """
         if hasattr(backend, "configuration"):
             cmap = backend.configuration().coupling_map
         else:
@@ -42,17 +52,50 @@ class PlaquetteLattice:
         self.core = PyHeavyHexLattice(cmap)
     
     def qubits(self) -> Iterator[PyQubit]:
+        """Yield annotated qubit dataclasses."""
         yield from self.core.qubits()
         
     def plaquettes(self) -> Iterator[PyPlaquette]:
+        """Yield plaquette dataclasses."""
         yield from self.core.plaquettes()
     
     def draw_qubits(self) -> Image:
+        """Draw coupling graph with qubits in the lattice."""
         return _to_image(self.core.qubit_graph_dot(), "fdp")
         
     def draw_plaquettes(self) -> Image:
+        """Draw coupling graph with plaquette in the lattice."""
         return _to_image(self.core.plaquette_graph_dot(), "neato")
-
+    
+    def filter(self, includes: list[int]) -> PlaquetteLattice:
+        """Create new plaquette lattice instance with subset of plaquettes.
+        
+        Args:
+            includes: Index of plaquettes to include.
+                This cannot include disconnected groups.
+                All qubits must be connected to build GEM circuit.
+        
+        Returns:
+            New plaquette lattice instance.
+        """
+        new_lattice = self.core.filter(includes)
+        instance = object.__new__(PlaquetteLattice)
+        instance.core = new_lattice
+        return instance
+    
+    def build_gate_schedule(self, index: int) -> Iterator[list[PyScheduledGate]]:
+        """Yield list of entangling gates that can be simultaneously applied.
+        
+        Args:
+            index: Index of gate schedule. There might be multiple scheduling patterns.
+        
+        Yields:
+            List of :class:`.PyScheduledGate` dataclass representing
+                an entangling gate, and all gates in a list can be 
+                applied simultaneously without qubit overlapping. 
+        """
+        yield from self.core.build_gate_schedule(index)
+    
 
 def _to_image(dot_data: str, method: str) -> Image:
         if not HAS_PILLOW:

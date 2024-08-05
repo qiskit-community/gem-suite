@@ -121,7 +121,6 @@ lazy_static! {
 }
 
 
-#[pyclass]
 /// Annotated qubit dataclass to expose in Python domain.
 /// 
 /// # Attributes
@@ -130,6 +129,8 @@ lazy_static! {
 /// * `role`: Qubit role in [Site, Bond].
 /// * `group`: Two qubit gate parameterization grouping in [A, B].
 /// * `neighbors`: Index of neighboring qubits.
+#[pyclass]
+#[derive(Debug, PartialEq)]
 pub struct PyQubit {
     #[pyo3(get)]
     index: usize,
@@ -166,6 +167,7 @@ impl PyQubit {
 /// * `qubits`: Physical index of component qubits.
 /// * `neighbors`: Index of neighboring plaquettes.
 #[pyclass]
+#[derive(Debug, PartialEq)]
 pub struct PyPlaquette {
     #[pyo3(get)]
     index: usize,
@@ -183,6 +185,37 @@ impl PyPlaquette {
             self.index,
             self.qubits,
             self.neighbors,
+        )
+    }
+}
+
+
+/// ScheduledGate dataclass to expose in Python domain.
+/// 
+/// # Attributes
+/// 
+/// * `index0`: First qubit where the entangling gate is applied to.
+/// * `index1`: Second qubit where the entangling gate is applied to.
+/// * `group`: Operation group in either A or B.
+#[pyclass]
+#[derive(Debug, PartialEq)]
+pub struct PyScheduledGate {
+    #[pyo3(get)]
+    index0: usize,
+    #[pyo3(get)]
+    index1: usize,
+    #[pyo3(get)]
+    group: String,
+}
+
+#[pymethods]
+impl PyScheduledGate {
+    pub fn __repr__(&self) -> String {
+        format!(
+            "PyGate(index0={}, index1={:?}, group={:?})",
+            self.index0,
+            self.index1,
+            self.group,
         )
     }
 }
@@ -288,6 +321,65 @@ impl PyHeavyHexLattice{
             .collect();
         nodes.sort_unstable_by_key(|n| n.index);
         nodes
+    }
+
+    /// Create new sublattice.
+    pub fn filter(&self, includes: Vec<usize>) -> Self {
+        // TODO: Add validation for disconnected index.
+        let new_plaquettes = self.plaquette_qubits_map
+            .iter()
+            .filter_map(|item| {
+                if includes.contains(item.0) {
+                    Some((*item.0, item.1.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect::<HashMap<_, _>>();
+        let connectivity = self.qubit_graph
+            .edge_weights()
+            .map(|e| (e.q0, e.q1))
+            .collect::<Vec<_>>();
+        PyHeavyHexLattice::from_plaquettes(new_plaquettes, connectivity)
+    }
+
+    /// Schedule entangling gates to build GEM circuit.
+    fn build_gate_schedule(&self, index: usize) -> Vec<Vec<PyScheduledGate>> {        
+        let reverse_node_map = self.qubit_graph
+            .node_indices()
+            .map(|n| (self.qubit_graph.node_weight(n).unwrap().index, n))
+            .collect::<HashMap<_, _>>();
+        GATE_ORDER[index]
+            .iter()
+            .map(|siml_group| {
+                siml_group
+                    .iter()
+                    .flat_map(|group| {
+                        self.qubit_graph
+                            .edge_weights()
+                            .filter_map(|ew| {
+                                if ew.group == Some(*group) {
+                                    let nw0 = self.qubit_graph.node_weight(reverse_node_map[&ew.q0]).unwrap();
+                                    let nw1 = self.qubit_graph.node_weight(reverse_node_map[&ew.q1]).unwrap();
+                                    let opgroup = match (nw0.role, nw1.role) {
+                                        (Some(QubitRole::Bond), Some(QubitRole::Site)) => nw1.group,
+                                        (Some(QubitRole::Site), Some(QubitRole::Bond)) => nw0.group,
+                                        _ => panic!("Qubit role configuration is invalid.")
+                                    };
+                                    let opgroup_str = match  opgroup.unwrap() {
+                                        OpGroup::A => format!("A"),
+                                        OpGroup::B => format!("B"),                                        
+                                    };
+                                    Some(PyScheduledGate{index0: nw0.index, index1: nw1.index, group: opgroup_str})
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>()
     }
 }
 
@@ -499,41 +591,6 @@ impl PyHeavyHexLattice {
         }
 
     }
-
-    fn schedule_edges(&self, index: usize) -> Vec<Vec<(usize, usize, OpGroup)>> {        
-        let reverse_node_map = self.qubit_graph
-            .node_indices()
-            .map(|n| (self.qubit_graph.node_weight(n).unwrap().index, n))
-            .collect::<HashMap<_, _>>();
-        GATE_ORDER[index]
-            .iter()
-            .map(|siml_group| {
-                siml_group
-                    .iter()
-                    .flat_map(|group| {
-                        self.qubit_graph
-                            .edge_weights()
-                            .filter_map(|ew| {
-                                if ew.group == Some(*group) {
-                                    let nw0 = self.qubit_graph.node_weight(reverse_node_map[&ew.q0]).unwrap();
-                                    let nw1 = self.qubit_graph.node_weight(reverse_node_map[&ew.q1]).unwrap();
-                                    let opgroup = match (nw0.role, nw1.role) {
-                                        (Some(QubitRole::Bond), Some(QubitRole::Site)) => nw1.group,
-                                        (Some(QubitRole::Site), Some(QubitRole::Bond)) => nw0.group,
-                                        _ => panic!("Qubit role configuration is invalid.")
-                                    };
-                                    Some((nw0.index, nw1.index, opgroup.unwrap()))
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect::<Vec<_>>()
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>()
-    }
-
 }
 
 
@@ -971,45 +1028,45 @@ mod tests {
     fn test_scheduling() {
         let coupling_map = FALCON_CMAP.lock().unwrap().to_owned();
         let plaquette_lattice = PyHeavyHexLattice::new(coupling_map);
-        let gates = plaquette_lattice.schedule_edges(0);
+        let gates = plaquette_lattice.build_gate_schedule(0);
         assert_eq!(
             gates[0],
             // Scheduling group E1 and E3
             vec![
-                (1, 4, OpGroup::A),
-                (8, 11, OpGroup::A),
-                (12, 15, OpGroup::A),
-                (19, 22, OpGroup::A),
-                (3, 5, OpGroup::B),
-                (7, 10, OpGroup::B),
-                (14, 16, OpGroup::B),
-                (18, 21, OpGroup::B),
+                PyScheduledGate {index0: 1, index1: 4, group: format!("A")},
+                PyScheduledGate {index0: 8, index1: 11, group: format!("A")},
+                PyScheduledGate {index0: 12, index1: 15, group: format!("A")},
+                PyScheduledGate {index0: 19, index1: 22, group: format!("A")},
+                PyScheduledGate {index0: 3, index1: 5, group: format!("B")},
+                PyScheduledGate {index0: 7, index1: 10, group: format!("B")},
+                PyScheduledGate {index0: 14, index1: 16, group: format!("B")},
+                PyScheduledGate {index0: 18, index1: 21, group: format!("B")},
             ]
         );
         assert_eq!(
             gates[1],
             // Scheduling group E5 and E2
             vec![
-                (1, 2, OpGroup::A),
-                (12, 13, OpGroup::A),
-                (23, 24, OpGroup::A),
-                (4, 7, OpGroup::B),
-                (11, 14, OpGroup::B),
-                (15, 18, OpGroup::B),
-                (22, 25, OpGroup::B),
+                PyScheduledGate {index0: 1, index1: 2, group: format!("A")},
+                PyScheduledGate {index0: 12, index1: 13, group: format!("A")},
+                PyScheduledGate {index0: 23, index1: 24, group: format!("A")},
+                PyScheduledGate {index0: 4, index1: 7, group: format!("B")},
+                PyScheduledGate {index0: 11, index1: 14, group: format!("B")},
+                PyScheduledGate {index0: 15, index1: 18, group: format!("B")},
+                PyScheduledGate {index0: 22, index1: 25, group: format!("B")},
             ]
-        );        
+        );
         assert_eq!(
             gates[2],
             // Scheduling group E4 and E6
             vec![
-                (5, 8, OpGroup::A),
-                (10, 12, OpGroup::A),
-                (16, 19, OpGroup::A),
-                (21, 23, OpGroup::A),
-                (2, 3, OpGroup::B),
-                (13, 14, OpGroup::B),
-                (24, 25, OpGroup::B),
+                PyScheduledGate {index0: 5, index1: 8, group: format!("A")},
+                PyScheduledGate {index0: 10, index1: 12, group: format!("A")},
+                PyScheduledGate {index0: 16, index1: 19, group: format!("A")},
+                PyScheduledGate {index0: 21, index1: 23, group: format!("A")},
+                PyScheduledGate {index0: 2, index1: 3, group: format!("B")},
+                PyScheduledGate {index0: 13, index1: 14, group: format!("B")},
+                PyScheduledGate {index0: 24, index1: 25, group: format!("B")},
             ]
         );
     }
