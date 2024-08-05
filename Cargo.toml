@@ -16,6 +16,7 @@ indexmap = { version = ">=1.9, <3", features = ["rayon"] }
 rayon = "1.10"
 petgraph = "0.6.5"
 lazy_static = "1.4"
+itertools = "0.13.0"
 
 [dependencies.pyo3]
 version = "0.21.2"

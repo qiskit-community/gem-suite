@@ -36,6 +36,11 @@ pub enum SchedulingGroup {
 }
 
 
+pub trait WriteDot {
+    fn to_dot(&self) -> String;
+}
+
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct QubitNode {
     pub index: usize,
@@ -44,8 +49,8 @@ pub struct QubitNode {
     pub coordinate: Option<(usize, usize)>,
 }
 
-impl QubitNode {
-    pub fn to_dot(&self) -> String {
+impl WriteDot for QubitNode {
+    fn to_dot(&self) -> String {
         let mut options = Vec::<String>::new();
         match self.role {
             Some(QubitRole::Site) => {
@@ -75,20 +80,20 @@ impl QubitNode {
             },
             None => {},
         }
-        format!("{} [{}, shape=circle];", self.index, options.join(", "))
+        format!("{} [{}, shape=\"circle\"];", self.index, options.join(", "))
     }
 }
 
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub struct CouplingEdge {
+pub struct QubitEdge {
     pub q0: usize,
     pub q1: usize,
     pub group: Option<SchedulingGroup>,
 }
 
-impl CouplingEdge {
-    pub fn to_dot(&self) -> String {
+impl WriteDot for QubitEdge {
+    fn to_dot(&self) -> String {
         let mut options = Vec::<String>::new();
         match self.group {
             Some(SchedulingGroup::E1) => {
@@ -114,5 +119,30 @@ impl CouplingEdge {
             },
         }
         format!("{} -- {} [{}];", self.q0, self.q1, options.join(", "))
+    }
+}
+
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct PlaquetteNode {
+    pub index: usize,
+}
+
+impl WriteDot for PlaquetteNode {
+    fn to_dot(&self) -> String {
+        format!("{} [label=\"P{}\", shape=\"hexagon\", width=0.81];", self.index, self.index)
+    }
+}
+
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct PlaquetteEdge {
+    pub p0: usize,
+    pub p1: usize,
+}
+
+impl WriteDot for PlaquetteEdge {
+    fn to_dot(&self) -> String {
+        format!("{} -- {};", self.p0, self.p1)
     }
 }

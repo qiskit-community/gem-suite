@@ -26,6 +26,7 @@ use std::{str, io::Write};
 use ahash::RandomState;
 use hashbrown::{HashMap, HashSet};
 use indexmap::IndexSet;
+use itertools::Itertools;
 
 use petgraph::graph::{EdgeIndex, NodeIndex};
 use petgraph::stable_graph::StableUnGraph;
@@ -33,11 +34,11 @@ use lazy_static::lazy_static;
 
 use pyo3::{prelude::*, types::PyString};
 
-use crate::plaquette_model::{CouplingEdge, OpGroup, QubitNode, QubitRole, SchedulingGroup};
+use crate::graph::*;
 
 
 lazy_static! {
-    static ref SCHEDULING_ORDER: Vec<SchedulingGroup> = vec![
+    static ref SCHEDULING_PATTERN: Vec<SchedulingGroup> = vec![
         SchedulingGroup::E1,
         SchedulingGroup::E2,
         SchedulingGroup::E3,
@@ -51,18 +52,84 @@ lazy_static! {
         SchedulingGroup::E6,
         SchedulingGroup::E5,
     ];
+    // Each schedule contains three elements since 
+    // GEM circuit is constant depth of 3, regardless of qubit number.
+    // For HHL, we can create 12 different scheduling patterns,
+    // which may vary the outcome due to the impact of crosstalk.
+    static ref GATE_ORDER: Vec<Vec<Vec<SchedulingGroup>>> = vec![
+        vec![
+            vec![SchedulingGroup::E1, SchedulingGroup::E3],
+            vec![SchedulingGroup::E5, SchedulingGroup::E2],
+            vec![SchedulingGroup::E4, SchedulingGroup::E6],
+        ],
+        vec![
+            vec![SchedulingGroup::E1, SchedulingGroup::E3],
+            vec![SchedulingGroup::E4, SchedulingGroup::E6],
+            vec![SchedulingGroup::E5, SchedulingGroup::E2],
+        ],
+        vec![    
+            vec![SchedulingGroup::E1, SchedulingGroup::E6],
+            vec![SchedulingGroup::E5, SchedulingGroup::E3],
+            vec![SchedulingGroup::E4, SchedulingGroup::E2],
+        ],
+        vec![    
+            vec![SchedulingGroup::E1, SchedulingGroup::E6],
+            vec![SchedulingGroup::E4, SchedulingGroup::E2],
+            vec![SchedulingGroup::E5, SchedulingGroup::E3],
+        ],
+        vec![
+            vec![SchedulingGroup::E5, SchedulingGroup::E3],
+            vec![SchedulingGroup::E1, SchedulingGroup::E6],
+            vec![SchedulingGroup::E4, SchedulingGroup::E2],
+        ],
+        vec![    
+            vec![SchedulingGroup::E5, SchedulingGroup::E3],
+            vec![SchedulingGroup::E4, SchedulingGroup::E2],
+            vec![SchedulingGroup::E1, SchedulingGroup::E6],
+        ],
+        vec![
+            vec![SchedulingGroup::E5, SchedulingGroup::E2],
+            vec![SchedulingGroup::E1, SchedulingGroup::E3],
+            vec![SchedulingGroup::E4, SchedulingGroup::E6],
+        ],
+        vec![    
+            vec![SchedulingGroup::E5, SchedulingGroup::E2],
+            vec![SchedulingGroup::E4, SchedulingGroup::E6],
+            vec![SchedulingGroup::E1, SchedulingGroup::E3],
+        ],
+        vec![    
+            vec![SchedulingGroup::E4, SchedulingGroup::E6],
+            vec![SchedulingGroup::E1, SchedulingGroup::E3],
+            vec![SchedulingGroup::E5, SchedulingGroup::E2],
+        ],
+        vec![   
+            vec![SchedulingGroup::E4, SchedulingGroup::E6],
+            vec![SchedulingGroup::E5, SchedulingGroup::E2],
+            vec![SchedulingGroup::E1, SchedulingGroup::E3],
+        ],
+        vec![
+            vec![SchedulingGroup::E4, SchedulingGroup::E2],
+            vec![SchedulingGroup::E1, SchedulingGroup::E6],
+            vec![SchedulingGroup::E5, SchedulingGroup::E3],
+        ],
+        vec![
+            vec![SchedulingGroup::E4, SchedulingGroup::E2],
+            vec![SchedulingGroup::E5, SchedulingGroup::E3],
+            vec![SchedulingGroup::E1, SchedulingGroup::E6],
+        ],
+    ];
 }
 
 
 #[pyclass]
-/// Annotated qubit data to expose in Python domain.
+/// Annotated qubit dataclass to expose in Python domain.
 /// 
 /// # Attributes
 /// 
 /// * `index`: Qubit physical index.
 /// * `role`: Qubit role in [Site, Bond].
 /// * `group`: Two qubit gate parameterization grouping in [A, B].
-/// * `neighbors`: Neighboring qubits.
+/// * `neighbors`: Index of neighboring qubits.
 pub struct PyQubit {
     #[pyo3(get)]
     index: usize,
@@ -91,6 +158,36 @@ impl PyQubit {
 }
 
 
+/// Plaquette dataclass to expose in Python domain.
+/// 
+/// # Attributes
+/// 
+/// * `index`: Plaquette index.
+/// * `qubits`: Physical index of component qubits.
+/// * `neighbors`: Index of neighboring plaquettes.
+#[pyclass]
+pub struct PyPlaquette {
+    #[pyo3(get)]
+    index: usize,
+    #[pyo3(get)]
+    qubits: Vec<usize>,
+    #[pyo3(get)]
+    neighbors: Vec<usize>,
+}
+
+#[pymethods]
+impl PyPlaquette {
+    pub fn __repr__(&self) -> String {
+        format!(
+            "PyPlaquette(index={}, qubits={:?}, neighbors={:?})",
+            self.index,
+            self.qubits,
+            self.neighbors,
+        )
+    }
+}
+
+
 #[pyclass]
 /// Plaquette representation of heavy hex lattice devices.
 /// Graph node and edges are immediately annotated for GEM experiments.
@@ -98,14 +195,14 @@ impl PyQubit {
 /// and the site qubits are further classified into OpGroup A or B.
 /// Edges (qubit coupling) are classified into one of 6 scheduling groups 
 /// corresponding to different scheduling pattern of entangling instructions.
-pub struct PyHeavyHexPlaquette {
-    #[pyo3(get)]
-    pub plaquettes: Vec<Vec<usize>>,
-    pub graph: StableUnGraph<QubitNode, CouplingEdge>,    
+pub struct PyHeavyHexLattice {
+    pub plaquette_qubits_map: HashMap<usize, Vec<usize>>,
+    pub qubit_graph: StableUnGraph<QubitNode, QubitEdge>,
+    pub plaquette_graph: StableUnGraph<PlaquetteNode, PlaquetteEdge>,
 }
 
 #[pymethods]
-impl PyHeavyHexPlaquette{
+impl PyHeavyHexLattice{
 
     /// Create new PyHeavyHexPlaquette object from the device coupling map.
     /// 
@@ -116,92 +213,41 @@ impl PyHeavyHexPlaquette{
     #[new]
     pub fn new(coupling_map: Vec<(usize, usize)>) -> Self {
         let (qubits, connectivity) = to_undirected(&coupling_map);
-        let plaquettes = build_plaquette(&qubits, &connectivity);
-        // Consider qubits in plaquettes
-        let mut plq_qubits: Vec<usize> = plaquettes
-            .clone()
+        let plaquettes = build_plaquette(&qubits, &connectivity)
             .into_iter()
-            .flatten()
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        plq_qubits.sort();
-        // plq_qubits = qubits.clone();
-        let mut coupling_graph: StableUnGraph<QubitNode, CouplingEdge> = StableUnGraph::with_capacity(plq_qubits.len(), connectivity.len());
-        // Build graph
-        let mut qubit_node_map = HashMap::<usize, NodeIndex>::with_capacity(plq_qubits.len());
-        for qidx in plq_qubits.iter() {
-            let nidx = coupling_graph.add_node(QubitNode {index: *qidx, role: None, group: None, coordinate: None});
-            qubit_node_map.insert(*qidx, nidx);
-        }
-        for (qi, qj) in connectivity.iter() {
-            let edge = CouplingEdge {q0: *qi, q1: *qj, group: None};
-            match (qubit_node_map.get(qi), qubit_node_map.get(qj)) {
-                (Some(ni), Some(nj)) => {
-                    coupling_graph.add_edge(*ni, *nj, edge);
-                },
-                // Node is not a part of plaquette
-                _ => continue,
-            }
-        }
-        // Assign qubit coordinate
-        // Minimum qubit locates at (0, 0)
-        let min_node = coupling_graph
-            .node_indices()
-            .min_by_key(|n| coupling_graph.node_weight(*n).unwrap().index)
-            .unwrap();
-        let node_weight = coupling_graph.node_weight_mut(min_node).unwrap();
-        node_weight.coordinate = Some((0_usize, 0_usize));
-        assign_coordinate_recursive(&min_node, &mut coupling_graph);
-        // Check orientation.
-        // Old IBM device may have different qubit index convention.
-        let all_coords: Vec<_> = coupling_graph
-            .node_weights()
-            .map(|w| w.coordinate.unwrap())
-            .collect();
-        if !all_coords.contains(&(4_usize, 0_usize)) {
-            for weight in coupling_graph.node_weights_mut() {
-                let c0 = weight.coordinate.unwrap();
-                weight.coordinate = Some((c0.1, c0.0));
-            }
-        }
-        let mut ret = PyHeavyHexPlaquette {plaquettes, graph: coupling_graph};
-        ret.annotate_nodes();
-        ret.annotate_edges();
-
-        ret
+            .enumerate()
+            .collect::<HashMap<_, _>>();
+        PyHeavyHexLattice::from_plaquettes(plaquettes, connectivity)
     }
 
-    /// Return dot script representing the annotated lattice 
-    /// to digest with the graphviz drawer.
-    pub fn to_dot(&self, py: Python) -> PyResult<Option<PyObject>> {
-        let mut buf = Vec::<u8>::new();
-        writeln!(&mut buf, "graph {{").unwrap();
-        writeln!(&mut buf, "node [fontname=\"Consolas\", fontsize=8.0, height=0.7];")?;
-        writeln!(&mut buf, "edge [fontname=\"Consolas\", penwidth=2.5];")?;
-        writeln!(&mut buf, "layout=fdp;")?;
-        for node in self.graph.node_weights() {
-            writeln!(&mut buf, "{}", node.to_dot()).unwrap();
-        }
-        for edge in self.graph.edge_weights() {
-            writeln!(&mut buf, "{}", edge.to_dot()).unwrap();
-        }
-        writeln!(&mut buf, "}}").unwrap();
+    /// Return dot script representing the annotated qubit lattice 
+    /// to create image with the graphviz drawer.
+    pub fn qubit_graph_dot(&self, py: Python) -> PyResult<Option<PyObject>> {
+        let buf = ungraph_to_dot(&self.qubit_graph);
         Ok(Some(
             PyString::new_bound(py, str::from_utf8(&buf)?).to_object(py)
         ))
     }
 
-    /// Return annotated qubits from the plaquette.
+    /// Return dot script representing the plaquette lattice 
+    /// to create image with the graphviz drawer.
+    pub fn plaquette_graph_dot(&self, py: Python) -> PyResult<Option<PyObject>> {
+        let buf = ungraph_to_dot(&self.plaquette_graph);
+        Ok(Some(
+            PyString::new_bound(py, str::from_utf8(&buf)?).to_object(py)
+        ))
+    }
+
+    /// Return annotated qubit dataclasses in this lattice.
     pub fn qubits(&self) -> Vec<PyQubit> {
-        let mut nodes: Vec<_> = self.graph
+        let mut nodes: Vec<_> = self.qubit_graph
             .node_indices()
             .map(|n| {
-                let neighbors: Vec<_> = self.graph
+                let neighbors: Vec<_> = self.qubit_graph
                     .neighbors(n)
-                    .map(|m| self.graph.node_weight(m).unwrap().index)
+                    .map(|m| self.qubit_graph.node_weight(m).unwrap().index)
                     .collect();
-                let weight = self.graph.node_weight(n).unwrap();
+                let weight = self.qubit_graph.node_weight(n).unwrap();
                 PyQubit {
                     index: weight.index,
                     role: match weight.role {
@@ -222,16 +268,64 @@ impl PyHeavyHexPlaquette{
         nodes.sort_unstable_by_key(|n| n.index);
         nodes
     }
+
+    /// Return plaquette dataclasses in this lattice.
+    pub fn plaquettes(&self) -> Vec<PyPlaquette> {
+        let mut nodes: Vec<_> = self.plaquette_graph
+            .node_indices()
+            .map(|n| {
+                let neighbors: Vec<_> = self.plaquette_graph
+                    .neighbors(n)
+                    .map(|m| self.plaquette_graph.node_weight(m).unwrap().index)
+                    .collect();
+                let weight = self.plaquette_graph.node_weight(n).unwrap();
+                PyPlaquette {
+                    index: weight.index,
+                    qubits: self.plaquette_qubits_map[&weight.index].to_owned(),
+                    neighbors: neighbors,
+                }
+            })
+            .collect();
+        nodes.sort_unstable_by_key(|n| n.index);
+        nodes
+    }
 }
 
-impl PyHeavyHexPlaquette {
+impl PyHeavyHexLattice {
+
+    pub fn from_plaquettes(
+        plaquettes: HashMap<usize, Vec<usize>>,
+        connectivity: Vec<(usize, usize)>,
+    ) -> Self {
+        // Consider qubits in plaquettes
+        let mut plq_qubits: Vec<usize> = plaquettes
+            .values()
+            .map(|qs| qs.to_owned())
+            .flatten()
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        plq_qubits.sort();
+        // Build graphs
+        let qubit_graph = build_qubit_graph(&plq_qubits, &connectivity);
+        let plaquette_graph = build_plaquette_graph(&plaquettes);
+        // Create new lattice struct
+        let mut ret = PyHeavyHexLattice {
+            plaquette_qubits_map: plaquettes, 
+            qubit_graph, 
+            plaquette_graph,
+        };
+        ret.annotate_nodes();
+        ret.annotate_edges();
+        ret
+    }
 
     fn annotate_nodes(&mut self) -> () {
         // In HHL, degree 3 nodes become site qubits.
-        let mut deg3nodes: Vec<_> = self.graph
+        let mut deg3nodes: Vec<_> = self.qubit_graph
             .node_indices()
             .filter_map(|n| {
-                let neighbors: Vec<_> = self.graph.neighbors(n).collect();
+                let neighbors: Vec<_> = self.qubit_graph.neighbors(n).collect();
                 if neighbors.len() == 3 {
                     Some(n)
                 } else {
@@ -242,23 +336,23 @@ impl PyHeavyHexPlaquette {
         if deg3nodes.len() == 0 {
             // When there is only one plaquette no degree 3 node exists.
             // In this case use top left.
-            let min_node = self.graph
+            let min_node = self.qubit_graph
                 .node_indices()
                 .min_by_key(|n| {
-                    let xy = self.graph.node_weight(*n).unwrap().coordinate.unwrap();
+                    let xy = self.qubit_graph.node_weight(*n).unwrap().coordinate.unwrap();
                     xy.0 + xy.1
                 })
                 .unwrap();
             deg3nodes.push(min_node);
         }
         for n in deg3nodes {
-            let weight = self.graph.node_weight_mut(n).unwrap();
+            let weight = self.qubit_graph.node_weight_mut(n).unwrap();
             weight.role = Some(QubitRole::Site);
         }
-        let mut unassigned: Vec<_> = self.graph
+        let mut unassigned: Vec<_> = self.qubit_graph
             .node_indices()
             .filter_map(|n| {
-                if self.graph.node_weight(n).unwrap().role.is_none() {
+                if self.qubit_graph.node_weight(n).unwrap().role.is_none() {
                     Some(n)
                 } else {
                     None
@@ -266,15 +360,15 @@ impl PyHeavyHexPlaquette {
             })
             .collect();
         while let Some(n) = unassigned.pop() {
-            let neighbor_roles: Vec<_> = self.graph
+            let neighbor_roles: Vec<_> = self.qubit_graph
                 .neighbors(n)
-                .filter_map(|n: NodeIndex| self.graph.node_weight(n).unwrap().role)
+                .filter_map(|n: NodeIndex| self.qubit_graph.node_weight(n).unwrap().role)
                 .collect();
             if neighbor_roles.len() == 0 {
                 unassigned.insert(0, n);
                 continue;
             }
-            let weight_mut = self.graph.node_weight_mut(n).unwrap();
+            let weight_mut = self.qubit_graph.node_weight_mut(n).unwrap();
             if neighbor_roles.contains(&QubitRole::Bond) & neighbor_roles.contains(&QubitRole::Site) {
                 panic!("Cannot resolve qubit role of Q{}.", weight_mut.index);
             } else if neighbor_roles.contains(&QubitRole::Bond) {
@@ -284,10 +378,10 @@ impl PyHeavyHexPlaquette {
             }
         }
         // Assign OpGroup to site qubits
-        let site_nodes: Vec<_> = self.graph
+        let site_nodes: Vec<_> = self.qubit_graph
             .node_indices()
             .filter_map(|n| {
-                if self.graph.node_weight(n).unwrap().role == Some(QubitRole::Site) {
+                if self.qubit_graph.node_weight(n).unwrap().role == Some(QubitRole::Site) {
                     Some(n)                
                 } else {
                     None
@@ -298,12 +392,12 @@ impl PyHeavyHexPlaquette {
         // Min qubit index node becomes Group A as a starting point
         let min_node = *site_nodes
             .iter()
-            .min_by_key(|n| self.graph.node_weight(**n).unwrap().index)
+            .min_by_key(|n| self.qubit_graph.node_weight(**n).unwrap().index)
             .unwrap();
         
         fn assign_recursive(
             node: NodeIndex, 
-            graph: &mut StableUnGraph<QubitNode, CouplingEdge>,
+            graph: &mut StableUnGraph<QubitNode, QubitEdge>,
             group: OpGroup,
         ) -> () {
             let weight = graph.node_weight_mut(node).unwrap();
@@ -324,21 +418,21 @@ impl PyHeavyHexPlaquette {
             }
         }
     
-        assign_recursive(min_node, &mut self.graph, OpGroup::A);
+        assign_recursive(min_node, &mut self.qubit_graph, OpGroup::A);
     }
 
     fn annotate_edges(&mut self) -> () {
-        let node_map = self.graph
+        let node_map = self.qubit_graph
             .node_indices()
-            .map(|n| (self.graph.node_weight(n).unwrap().index, n))
+            .map(|n| (self.qubit_graph.node_weight(n).unwrap().index, n))
             .collect::<HashMap<_, _>>();
-        for plaquette_qubits in self.plaquettes.iter() {
+        for plaquette_qubits in self.plaquette_qubits_map.values() {
             let plq_nodes = plaquette_qubits
                 .iter()
                 .map(|qi| node_map[qi])
                 .collect::<Vec<_>>();
             let get_xy = |n: &NodeIndex| -> (usize, usize) {
-                self.graph.node_weight(*n).unwrap().coordinate.unwrap()
+                self.qubit_graph.node_weight(*n).unwrap().coordinate.unwrap()
             };
             // Sort by distance from the minimum qubit node
             let topleft = *plq_nodes
@@ -351,7 +445,7 @@ impl PyHeavyHexPlaquette {
             // Find previous node (counter-clock)
             let this_y = get_xy(&topleft).1;
             let mut any_prev = None;
-            for nj in self.graph.neighbors(topleft) {
+            for nj in self.qubit_graph.neighbors(topleft) {
                 if !plq_nodes.contains(&nj) {
                     continue;
                 }
@@ -368,16 +462,16 @@ impl PyHeavyHexPlaquette {
             };
             // Go clockwise from found edge
             let mut clkwise_edges = Vec::<EdgeIndex>::new();
-            let coloring_iter = SCHEDULING_ORDER
+            let coloring_iter = SCHEDULING_PATTERN
                 .to_owned()
                 .into_iter()
                 .cycle();
             loop {
-                for ni in self.graph.neighbors(this) {
+                for ni in self.qubit_graph.neighbors(this) {
                     if (ni == prev) | !plq_nodes.contains(&ni) {
                         continue;
                     }
-                    let this_edge = self.graph.find_edge(this, ni).unwrap();
+                    let this_edge = self.qubit_graph.find_edge(this, ni).unwrap();
                     clkwise_edges.push(this_edge);
                     prev = this;
                     this = ni;
@@ -388,7 +482,7 @@ impl PyHeavyHexPlaquette {
                 }
             }
             for (edge, color) in clkwise_edges.into_iter().zip(coloring_iter) {
-                let weight = self.graph.edge_weight_mut(edge).unwrap();
+                let weight = self.qubit_graph.edge_weight_mut(edge).unwrap();
                 if let Some(group) = weight.group {
                     if group != color {
                         panic!(
@@ -405,13 +499,131 @@ impl PyHeavyHexPlaquette {
         }
 
     }
-    
+
+    fn schedule_edges(&self, index: usize) -> Vec<Vec<(usize, usize, OpGroup)>> {        
+        let reverse_node_map = self.qubit_graph
+            .node_indices()
+            .map(|n| (self.qubit_graph.node_weight(n).unwrap().index, n))
+            .collect::<HashMap<_, _>>();
+        GATE_ORDER[index]
+            .iter()
+            .map(|siml_group| {
+                siml_group
+                    .iter()
+                    .flat_map(|group| {
+                        self.qubit_graph
+                            .edge_weights()
+                            .filter_map(|ew| {
+                                if ew.group == Some(*group) {
+                                    let nw0 = self.qubit_graph.node_weight(reverse_node_map[&ew.q0]).unwrap();
+                                    let nw1 = self.qubit_graph.node_weight(reverse_node_map[&ew.q1]).unwrap();
+                                    let opgroup = match (nw0.role, nw1.role) {
+                                        (Some(QubitRole::Bond), Some(QubitRole::Site)) => nw1.group,
+                                        (Some(QubitRole::Site), Some(QubitRole::Bond)) => nw0.group,
+                                        _ => panic!("Qubit role configuration is invalid.")
+                                    };
+                                    Some((nw0.index, nw1.index, opgroup.unwrap()))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>()
+    }
+
+}
+
+
+pub(crate) fn build_qubit_graph(
+    qubits: &Vec<usize>, 
+    connectivity: &Vec<(usize, usize)>,
+) -> StableUnGraph<QubitNode, QubitEdge> {
+    let mut graph: StableUnGraph<QubitNode, QubitEdge> = StableUnGraph::with_capacity(qubits.len(), connectivity.len());
+    // Build graph
+    let mut qubit_node_map = HashMap::<usize, NodeIndex>::with_capacity(qubits.len());
+    for qidx in qubits.iter() {
+        let nidx = graph.add_node(QubitNode {index: *qidx, role: None, group: None, coordinate: None});
+        qubit_node_map.insert(*qidx, nidx);
+    }
+    for (qi, qj) in connectivity.iter() {
+        match (qubit_node_map.get(qi), qubit_node_map.get(qj)) {
+            (Some(ni), Some(nj)) => {
+                let edge = QubitEdge {q0: *qi, q1: *qj, group: None};
+                graph.add_edge(*ni, *nj, edge);
+            },
+            // Node is not a part of plaquette
+            _ => continue,
+        }
+    }
+    // Assign qubit coordinate
+    // Minimum qubit locates at (0, 0)
+    let min_node = graph
+        .node_indices()
+        .min_by_key(|n| graph.node_weight(*n).unwrap().index)
+        .unwrap();
+    let node_weight = graph.node_weight_mut(min_node).unwrap();
+    node_weight.coordinate = Some((0_usize, 0_usize));
+    assign_coordinate_recursive(&min_node, &mut graph);
+    // Check orientation.
+    // Old IBM device may have different qubit index convention.
+    let all_coords: Vec<_> = graph
+        .node_weights()
+        .map(|w| w.coordinate.unwrap())
+        .collect();
+    if !all_coords.contains(&(4_usize, 0_usize)) {
+        for weight in graph.node_weights_mut() {
+            let c0 = weight.coordinate.unwrap();
+            weight.coordinate = Some((c0.1, c0.0));
+        }
+    }
+    graph
+}
+
+
+pub(crate) fn build_plaquette_graph(
+    plaquettes: &HashMap<usize, Vec<usize>>
+) -> StableUnGraph<PlaquetteNode, PlaquetteEdge> {
+    let nodes = plaquettes
+        .keys()
+        .map(|i| PlaquetteNode {index: *i})
+        .collect::<Vec<_>>();
+    let edges = plaquettes
+        .iter()
+        .tuple_combinations::<(_, _)>()
+        .filter_map(
+            |plqs| {
+                let qs0 = plqs.0.1.iter().collect::<HashSet<_>>();
+                let qs1 = plqs.1.1.iter().collect::<HashSet<_>>();
+                if !qs0.is_disjoint(&qs1) {
+                    Some(PlaquetteEdge {p0: *plqs.0.0, p1: *plqs.1.0})
+                } else {
+                    None
+                }
+            }
+        )
+        .collect::<Vec<_>>();
+    let mut new_graph = StableUnGraph::<PlaquetteNode, PlaquetteEdge>::with_capacity(nodes.len(), edges.len());
+    let mut node_map = HashMap::<usize, NodeIndex>::new();
+    for node in nodes {
+        let p_index = node.index;
+        let n_index = new_graph.add_node(node);
+        node_map.insert(p_index, n_index);
+    }
+    for edge in edges {
+        let n1 = node_map[&edge.p0];
+        let n2 = node_map[&edge.p1];
+        new_graph.add_edge(n1, n2, edge);
+    }
+    new_graph
 }
 
 
 fn assign_coordinate_recursive(
     node: &NodeIndex,
-    graph: &mut StableUnGraph<QubitNode, CouplingEdge>,
+    graph: &mut StableUnGraph<QubitNode, QubitEdge>,
 ) -> () {
     let neighbors: Vec<_> = graph
         .neighbors(*node)
@@ -634,6 +846,24 @@ fn process_stack(
 }
 
 
+fn ungraph_to_dot<N: WriteDot, E: WriteDot>(
+    graph: &StableUnGraph<N, E>,
+) -> Vec<u8> {
+    let mut buf = Vec::<u8>::new();
+    writeln!(&mut buf, "graph {{").unwrap();
+    writeln!(&mut buf, "node [fontname=\"Consolas\", fontsize=8.0, height=0.7];").unwrap();
+    writeln!(&mut buf, "edge [fontname=\"Consolas\", penwidth=2.5];").unwrap();
+    for node in graph.node_weights() {
+        writeln!(&mut buf, "{}", node.to_dot()).unwrap();
+    }
+    for edge in graph.edge_weights() {
+        writeln!(&mut buf, "{}", edge.to_dot()).unwrap();
+    }
+    writeln!(&mut buf, "}}").unwrap();
+    buf
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -734,6 +964,53 @@ mod tests {
         assert_eq!(
             plaquettes[17],
             vec![104, 105, 106, 107, 108, 111, 112, 122, 123, 124, 125, 126],
+        );
+    }
+
+    #[test]
+    fn test_scheduling() {
+        let coupling_map = FALCON_CMAP.lock().unwrap().to_owned();
+        let plaquette_lattice = PyHeavyHexLattice::new(coupling_map);
+        let gates = plaquette_lattice.schedule_edges(0);
+        assert_eq!(
+            gates[0],
+            // Scheduling group E1 and E3
+            vec![
+                (1, 4, OpGroup::A),
+                (8, 11, OpGroup::A),
+                (12, 15, OpGroup::A),
+                (19, 22, OpGroup::A),
+                (3, 5, OpGroup::B),
+                (7, 10, OpGroup::B),
+                (14, 16, OpGroup::B),
+                (18, 21, OpGroup::B),
+            ]
+        );
+        assert_eq!(
+            gates[1],
+            // Scheduling group E5 and E2
+            vec![
+                (1, 2, OpGroup::A),
+                (12, 13, OpGroup::A),
+                (23, 24, OpGroup::A),
+                (4, 7, OpGroup::B),
+                (11, 14, OpGroup::B),
+                (15, 18, OpGroup::B),
+                (22, 25, OpGroup::B),
+            ]
+        );        
+        assert_eq!(
+            gates[2],
+            // Scheduling group E4 and E6
+            vec![
+                (5, 8, OpGroup::A),
+                (10, 12, OpGroup::A),
+                (16, 19, OpGroup::A),
+                (21, 23, OpGroup::A),
+                (2, 3, OpGroup::B),
+                (13, 14, OpGroup::B),
+                (24, 25, OpGroup::B),
+            ]
         );
     }
 }

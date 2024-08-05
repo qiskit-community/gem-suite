@@ -1,6 +1,0 @@
-Metadata-Version: 2.1
-Name: gem-suite
-Version: 2024.0.0
-Summary: Qiskit Experiments suite for generation of entanglement using measurements.
-Author-email: Naoki Kanazawa <knzwnao@jp.ibm.com>
-Requires-Python: >=3.8

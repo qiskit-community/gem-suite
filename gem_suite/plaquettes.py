@@ -28,7 +28,7 @@ except ImportError:
 if TYPE_CHECKING:
     from PIL import Image  # type: ignore
 
-from gem_suite.gem_core import PyHeavyHexPlaquette, PyQubit
+from gem_suite.gem_core import PyHeavyHexLattice, PyQubit, PyPlaquette
 from qiskit.providers import BackendV2
 
 
@@ -39,15 +39,22 @@ class PlaquetteLattice:
             cmap = backend.configuration().coupling_map
         else:
             cmap = list(backend.coupling_map)
-        self.core = PyHeavyHexPlaquette(cmap)
-        
-    def plaquette(self, index: int | None) -> list[int]:
-        return self.core.plaquettes[index]
+        self.core = PyHeavyHexLattice(cmap)
     
     def qubits(self) -> Iterator[PyQubit]:
         yield from self.core.qubits()
+        
+    def plaquettes(self) -> Iterator[PyPlaquette]:
+        yield from self.core.plaquettes()
     
-    def draw(self) -> Image:
+    def draw_qubits(self) -> Image:
+        return _to_image(self.core.qubit_graph_dot(), "fdp")
+        
+    def draw_plaquettes(self) -> Image:
+        return _to_image(self.core.plaquette_graph_dot(), "neato")
+
+
+def _to_image(dot_data: str, method: str) -> Image:
         if not HAS_PILLOW:
             raise ImportError(
                 "Pillow is necessary to use draw(). "
@@ -66,8 +73,8 @@ class PlaquetteLattice:
                 "This function requires that Graphviz is installed."
             )
         dot_result = subprocess.run(
-            ["fdp", "-T", "png"],
-            input=cast(str, self.core.to_dot()).encode("utf-8"),
+            [method, "-T", "png"],
+            input=cast(str, dot_data).encode("utf-8"),
             capture_output=True,
             encoding=None,
             check=True,

@@ -13,13 +13,14 @@
 use pyo3::prelude::*;
 
 pub mod heavyhex;
-mod plaquette_model;
+mod graph;
 mod mock;
 
 
 #[pymodule]
 fn gem_core(m: &Bound<PyModule>) -> PyResult<()> {
-    m.add_class::<heavyhex::PyHeavyHexPlaquette>()?;
+    m.add_class::<heavyhex::PyHeavyHexLattice>()?;
     m.add_class::<heavyhex::PyQubit>()?;
+    m.add_class::<heavyhex::PyPlaquette>()?;
     Ok(())
 }
