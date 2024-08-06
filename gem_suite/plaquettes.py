@@ -20,6 +20,7 @@ import io
 
 from collections import namedtuple
 from typing import cast, TYPE_CHECKING, Iterator
+
 try:
     from PIL import Image  # type: ignore
     HAS_PILLOW = True
@@ -29,9 +30,10 @@ except ImportError:
 if TYPE_CHECKING:
     from PIL import Image  # type: ignore
 
-from gem_suite.gem_core import PyHeavyHexLattice, PyQubit, PyPlaquette, PyScheduledGate
+import numpy as np
 from qiskit.providers import BackendV2
 
+from gem_suite.gem_core import PyHeavyHexLattice, PyQubit, PyPlaquette, PyScheduledGate
 
 ScheduledGate = namedtuple("ScheduledGate", ["q0", "q1", "group"])
 
@@ -83,13 +85,9 @@ class PlaquetteLattice:
         """Draw coupling graph with plaquette in the lattice."""
         return _to_image(self.core.plaquette_graph_dot(), "neato")
     
-    def draw_sites(self) -> Image:
-        """Draw coupling graph with site qubits in the lattice."""
-        return _to_image(self.core.site_graph_dot(), "fdp")
-
-    def draw_snake(self) -> Image:
-        """Draw snake coupling graph with site qubits in the lattice."""
-        return _to_image(self.core.snake_graph_dot(), "fdp")
+    def draw_decode_graph(self) -> Image:
+        """Draw qubit graph with annotation for decoding."""
+        return _to_image(self.core.decode_graph_dot(), "fdp")
     
     def filter(self, includes: list[int]) -> PlaquetteLattice:
         """Create new plaquette lattice instance with subset of plaquettes.
@@ -120,6 +118,15 @@ class PlaquetteLattice:
         """
         yield from self.core.build_gate_schedule(index)
     
+    def check_matrix(self) -> np.ndarray:
+        """Create check matrix from the plaquette lattice.
+        
+        This returns a two-dimensional binary matrix with dimension of
+        (num syndrome, num bond qubits).
+        """
+        hvec, dims = self.core.check_matrix()
+        return np.array(hvec, dtype=bool).reshape(dims)
+
 
 def _to_image(dot_data: str, method: str) -> Image:
         if not HAS_PILLOW:

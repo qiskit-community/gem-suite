@@ -16,6 +16,7 @@ pub mod heavyhex;
 pub mod heavyhex_decode;
 mod graph;
 mod mock;
+mod utils;
 
 
 #[pymodule]

@@ -11,6 +11,11 @@
 // that they have been altered from the originals.
 
 
+pub type PlaquetteIndex = usize;
+pub type QubitIndex = usize;
+pub type BitIndex = usize;
+
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum QubitRole {
     Site,
@@ -43,7 +48,7 @@ pub trait WriteDot {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct QubitNode {
-    pub index: usize,
+    pub index: QubitIndex,
     pub role: Option<QubitRole>,
     pub group: Option<OpGroup>,
     pub coordinate: Option<(usize, usize)>,
@@ -87,8 +92,8 @@ impl WriteDot for QubitNode {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct QubitEdge {
-    pub q0: usize,
-    pub q1: usize,
+    pub neighbor0: QubitIndex,
+    pub neighbor1: QubitIndex,
     pub group: Option<SchedulingGroup>,
 }
 
@@ -118,14 +123,14 @@ impl WriteDot for QubitEdge {
                 options.push(format!("color=black"));                
             },
         }
-        format!("{} -- {} [{}];", self.q0, self.q1, options.join(", "))
+        format!("{} -- {} [{}];", self.neighbor0, self.neighbor1, options.join(", "))
     }
 }
 
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct PlaquetteNode {
-    pub index: usize,
+    pub index: PlaquetteIndex,
 }
 
 impl WriteDot for PlaquetteNode {
@@ -137,26 +142,74 @@ impl WriteDot for PlaquetteNode {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct PlaquetteEdge {
-    pub p0: usize,
-    pub p1: usize,
+    pub neighbor0: PlaquetteIndex,
+    pub neighbor1: PlaquetteIndex,
 }
 
 impl WriteDot for PlaquetteEdge {
     fn to_dot(&self) -> String {
-        format!("{} -- {};", self.p0, self.p1)
+        format!("{} -- {};", self.neighbor0, self.neighbor1)
+    }
+}
+
+
+pub struct DecodeNode {
+    pub index: QubitIndex,
+    pub bit_index: Option<BitIndex>,
+    pub coordinate: (usize, usize),
+}
+
+impl WriteDot for DecodeNode {
+    fn to_dot(&self) -> String {
+        let label = if let Some(bi) = self.bit_index {
+            format!("Q{}:S[{}]", self.index, bi)
+        } else {
+            format!("Q{}", self.index)
+        };
+        format!(
+            "{} [pos=\"{},-{}\", pin=True, fillcolor=darkgrey, style=filled, shape=circle, label=\"{}\"];", 
+            self.index,
+            self.coordinate.0,
+            self.coordinate.1,
+            label,
+        )
     }
 }
 
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub struct SiteEdge {
-    pub s1: usize,
-    pub s2: usize,
-    pub bond: usize,
+pub struct DecodeEdge {
+    pub index: QubitIndex,
+    pub neighbor0: QubitIndex,
+    pub neighbor1: QubitIndex,
+    pub bit_index: Option<BitIndex>,
+    pub is_decoding_edge: bool,
+    pub keep_in_snake: bool,
 }
 
-impl WriteDot for SiteEdge {
+impl WriteDot for DecodeEdge {
     fn to_dot(&self) -> String {
-        format!("{} -- {} [label=\"Q{}\"];", self.s1, self.s2, self.bond)
+        let mut options = Vec::<String>::new();
+        if self.is_decoding_edge {
+            options.push(format!("color=blue"));
+            options.push(format!("penwidth=2.5"));
+        } else {
+            options.push(format!("penwidth=1.0"));
+        }
+        if !self.keep_in_snake {
+            options.push(format!("style=dashed"));
+        }
+        let label = if let Some(bi) = self.bit_index {
+            format!("Q{}:B[{}]", self.index, bi)
+        } else {
+            format!("Q{}", self.index)
+        };
+        format!(
+            "{} -- {} [{}, label=\"{}\"];", 
+            self.neighbor0, 
+            self.neighbor1, 
+            options.join(", "),
+            label,
+        )
     }
 }
