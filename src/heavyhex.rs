@@ -30,7 +30,7 @@ use lazy_static::lazy_static;
 use pyo3::{prelude::*, types::PyString};
 
 use crate::graph::*;
-use crate::utils::{ungraph_to_dot, to_undirected};
+use crate::utils::{ungraph_to_dot, to_undirected, decode_magnetization};
 
 
 lazy_static! {
@@ -400,10 +400,26 @@ impl PyHeavyHexLattice{
         (hmat, (num_syndrome, num_bonds))
     }
 
+    /// Decode raw circuit outcome with plaquette lattice information
+    /// to compute quantities associated with prepared state magnetization 
+    /// and other set of quantities associated with device error.
+    /// 
+    /// # Arguments
+    /// * `counts`: Count dictionary keyed on measured bitstring in little endian format.
+    /// * `return_counts`: Set true to return decoded count dictionary. 
+    ///   The dict data is not used in the following analysis in Python domain 
+    ///   while data size is large and thus increases the overhead in the FFI boundary.
+    ///   When this function is called from Rust, this overhead doesn't matter since
+    ///   data is just moved.
+    /// 
+    /// # Returns
+    /// A tuple of decoded dictionary, plaquette and ZXZ bond observables,
+    /// and f and g values associated with decoded magnetization.
     pub fn decode_outcomes(
         &self,
         counts: HashMap<String, usize>,
-    ) -> (HashMap<String, usize>, Vec<usize>, Vec<isize>) {
+        return_counts: bool,
+    ) -> (Option<HashMap<String, usize>>, Vec<f64>, Vec<f64>, (f64, f64), (f64, f64)) {
         let mut solver = self.build_mwpm_solver();
         let mut decoding_bonds = self.decode_graph
             .edge_weights()
@@ -453,6 +469,7 @@ impl PyHeavyHexLattice{
         let mut decoded_counts = HashMap::<String, usize>::with_capacity(counts.len());
         let mut syndrome_sum = vec![0_usize; n_syndrome];
         let mut bond_correlation_sum = vec![0_isize; n_bonds];
+        let mut total_shots = 0_usize;
         for (key, count_num) in counts.iter() {
             solver.clear();
             let bitstring = key.chars().collect_vec();
@@ -535,8 +552,22 @@ impl PyHeavyHexLattice{
                 .map(|bit| if *bit { '1' } else { '0' })
                 .collect::<String>();
             *decoded_counts.entry_ref(&site_key).or_insert(0) += count_num;
+            total_shots += count_num;
         }
-        (decoded_counts, syndrome_sum, bond_correlation_sum)
+        let w_ops = syndrome_sum
+            .into_iter()
+            .map(|v| 1.0 - 2.0 * v as f64 / total_shots as f64)
+            .collect_vec();
+        let zxz_ops = bond_correlation_sum
+            .into_iter()
+            .map(|v| v as f64 / total_shots as f64)
+            .collect_vec();
+        let (f, g) = decode_magnetization(&decoded_counts);
+        if return_counts {
+            (Some(decoded_counts), w_ops, zxz_ops, f, g)
+        } else {
+            (None, w_ops, zxz_ops, f, g)
+        }
     }
 }
 
@@ -809,22 +840,25 @@ mod tests {
         let coupling_map = FALCON_CMAP.lock().unwrap().to_owned();
         let lattice = PyHeavyHexLattice::new(coupling_map);
         let outcomes = HashMap::<String, usize>::from([(format!("100111000111010001010"), 123)]);
-        let decoded = lattice.decode_outcomes(outcomes);
+        let tmp = lattice.decode_outcomes(outcomes, true);
+        let count = tmp.0.unwrap();
+        let w_ops = tmp.1;
+        let zxz_ops = tmp.2;
+        let f = tmp.3.0;
+        let g = tmp.4.0;
         assert_eq!(
-            decoded.0,
+            count,
             HashMap::<String, usize>::from([(format!("0000111000"), 123_usize)])
         );
         assert_eq!(
-            decoded.1,
-            vec![0_usize, 123_usize]
+            w_ops,
+            vec![1.0, -1.0]
         );
         assert_eq!(
-            decoded.1,
-            vec![0_usize, 123_usize]
+            zxz_ops,
+            vec![1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0]
         );
-        assert_eq!(
-            decoded.2,
-            vec![123_isize, 123_isize, -123_isize, -123_isize, 123_isize, 123_isize, 123_isize, -123_isize, 123_isize, 123_isize, 123_isize]
-        );
+        assert_eq!(f, 0.0);
+        assert_eq!(g, 0.0);
     }
 }

@@ -36,7 +36,7 @@ from qiskit.providers import BackendV2
 from gem_suite.gem_core import PyHeavyHexLattice, PyQubit, PyPlaquette, PyScheduledGate
 
 ScheduledGate = namedtuple("ScheduledGate", ["q0", "q1", "group"])
-DecodeOutcome = namedtuple("DecodeOutcome", ["counts", "syndrom_sum", "bond_correlation_sum"])
+DecodeOutcome = namedtuple("DecodeOutcome", ["counts", "w_ops", "zxz_ops", "f", "g"])
 
 
 class PlaquetteLattice:
@@ -128,17 +128,23 @@ class PlaquetteLattice:
         hvec, dims = self._core.check_matrix()
         return np.array(hvec, dtype=bool).reshape(dims)
     
-    def decode_outcomes(self, counts: dict[str, int]) -> DecodeOutcome:
+    def decode_outcomes(
+        self, 
+        counts: dict[str, int],
+        return_counts: bool = False,
+    ) -> DecodeOutcome:
         """Decode count dictionary of the experiment result and analyze.
         
         Args:
             counts: Count dictionary of single circuit.
+            return_counts: Set True to return count dictionary.
         
         Returns:
             Outcome consisting of new count dictionary (keyed on site bits),
-            count sum of frustrated syndrome, and count sum of correlated bonds.
+            plaquette and ZXZ bond operators,
+            and f and g values associated with the prepared state magnetization.
         """
-        return DecodeOutcome(*self._core.decode_outcomes(counts))
+        return DecodeOutcome(*self._core.decode_outcomes(counts, return_counts))
 
 
 def _to_image(dot_data: str, method: str) -> Image:

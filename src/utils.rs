@@ -12,7 +12,7 @@
 
 use std::io::Write;
 
-use hashbrown::HashSet;
+use hashbrown::{HashSet, HashMap};
 
 use itertools::Itertools;
 use petgraph::stable_graph::StableUnGraph;
@@ -64,4 +64,51 @@ pub(crate) fn ungraph_to_dot<N: WriteDot, E: WriteDot>(
     }
     writeln!(&mut buf, "}}").unwrap();
     buf
+}
+
+
+/// Decode magnetization of the circuit outcome.
+pub(crate) fn decode_magnetization(
+    counts: &HashMap<String, usize>
+) -> ((f64, f64), (f64, f64)) {
+    let shots = counts
+        .values()
+        .fold(0_usize, |sum, v| sum + *v);
+    // Momentums
+    let mut m1 = 0.0;
+    let mut m2 = 0.0;
+    let mut m4 = 0.0;
+    let mut m8 = 0.0;
+    let mut bitlen = None;
+    for (bitstring, count_num) in counts.iter() {
+        // Suming over the decoded Z expectation values of the individual qubit
+        let mag = bitstring
+            .chars()
+            .fold(0.0, |sum, bit| {
+                match bit {
+                    '0' => sum + 1.0,
+                    '1' => sum - 1.0,
+                    _ => panic!("Decoded bitstring is not binary value."),
+                }
+            });
+        let freq = *count_num as f64 / shots as f64;
+        m1 += freq * mag;
+        m2 += freq * mag.powf(2.0);
+        m4 += freq * mag.powf(4.0);
+        m8 += freq * mag.powf(8.0);
+        if let Some(n) = bitlen {
+            if n != bitstring.len() {
+                panic!("Bit length is not uniform in this count dictionary.");
+            }
+        } else {
+            bitlen = Some(bitstring.len());
+        }
+    }
+    let n = bitlen.unwrap() as f64;
+    let s = shots as f64;
+    let f = 1.0 / n * (m2 - m1.powf(2.0));
+    let g = 1.0 / n.powf(3.0) * (m4 - m2.powf(2.0));
+    let fstd = 1.0 / n * (m4 / s - (m2 - m1.powf(2.0)).powf(2.0) * (s - 3.0) / s / (s - 1.0)).powf(0.5);
+    let gstd = 1.0 / n.powf(3.0) * (m8 / s - fstd.powf(4.0) * (s - 3.0) / s / (s - 1.0)).powf(0.5);
+    ((f, fstd), (g, gstd))
 }
