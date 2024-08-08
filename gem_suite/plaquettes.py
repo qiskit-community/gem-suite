@@ -36,6 +36,7 @@ from qiskit.providers import BackendV2
 from gem_suite.gem_core import PyHeavyHexLattice, PyQubit, PyPlaquette, PyScheduledGate
 
 ScheduledGate = namedtuple("ScheduledGate", ["q0", "q1", "group"])
+DecodeOutcome = namedtuple("DecodeOutcome", ["counts", "syndrom_sum", "bond_correlation_sum"])
 
 
 class PlaquetteLattice:
@@ -51,8 +52,8 @@ class PlaquetteLattice:
             cmap = backend.configuration().coupling_map
         else:
             cmap = list(backend.coupling_map)
-        self.core = PyHeavyHexLattice(cmap)
-        self.coupling_map = cmap
+        self._core = PyHeavyHexLattice(cmap)
+        self._coupling_map = cmap
 
     @classmethod
     def from_coupling_map(cls, coupling_map: list[tuple[int, int]]):
@@ -66,28 +67,28 @@ class PlaquetteLattice:
         """
         new_lattice = PyHeavyHexLattice(coupling_map)
         instance = object.__new__(PlaquetteLattice)
-        instance.core = new_lattice
+        instance._core = new_lattice
         return instance
     
     def qubits(self) -> Iterator[PyQubit]:
         """Yield annotated qubit dataclasses."""
-        yield from self.core.qubits()
+        yield from self._core.qubits()
         
     def plaquettes(self) -> Iterator[PyPlaquette]:
         """Yield plaquette dataclasses."""
-        yield from self.core.plaquettes()
+        yield from self._core.plaquettes()
     
     def draw_qubits(self) -> Image:
         """Draw coupling graph with qubits in the lattice."""
-        return _to_image(self.core.qubit_graph_dot(), "fdp")
+        return _to_image(self._core.qubit_graph_dot(), "fdp")
         
     def draw_plaquettes(self) -> Image:
         """Draw coupling graph with plaquette in the lattice."""
-        return _to_image(self.core.plaquette_graph_dot(), "neato")
+        return _to_image(self._core.plaquette_graph_dot(), "neato")
     
     def draw_decode_graph(self) -> Image:
         """Draw qubit graph with annotation for decoding."""
-        return _to_image(self.core.decode_graph_dot(), "fdp")
+        return _to_image(self._core.decode_graph_dot(), "fdp")
     
     def filter(self, includes: list[int]) -> PlaquetteLattice:
         """Create new plaquette lattice instance with subset of plaquettes.
@@ -100,9 +101,9 @@ class PlaquetteLattice:
         Returns:
             New plaquette lattice instance.
         """
-        new_lattice = self.core.filter(includes)
+        new_lattice = self._core.filter(includes)
         instance = object.__new__(PlaquetteLattice)
-        instance.core = new_lattice
+        instance._core = new_lattice
         return instance
     
     def build_gate_schedule(self, index: int) -> Iterator[list[PyScheduledGate]]:
@@ -116,7 +117,7 @@ class PlaquetteLattice:
                 an entangling gate, and all gates in a list can be 
                 applied simultaneously without qubit overlapping. 
         """
-        yield from self.core.build_gate_schedule(index)
+        yield from self._core.build_gate_schedule(index)
     
     def check_matrix(self) -> np.ndarray:
         """Create check matrix from the plaquette lattice.
@@ -124,8 +125,20 @@ class PlaquetteLattice:
         This returns a two-dimensional binary matrix with dimension of
         (num syndrome, num bond qubits).
         """
-        hvec, dims = self.core.check_matrix()
+        hvec, dims = self._core.check_matrix()
         return np.array(hvec, dtype=bool).reshape(dims)
+    
+    def decode_outcomes(self, counts: dict[str, int]) -> DecodeOutcome:
+        """Decode count dictionary of the experiment result and analyze.
+        
+        Args:
+            counts: Count dictionary of single circuit.
+        
+        Returns:
+            Outcome consisting of new count dictionary (keyed on site bits),
+            count sum of frustrated syndrome, and count sum of correlated bonds.
+        """
+        return DecodeOutcome(*self._core.decode_outcomes(counts))
 
 
 def _to_image(dot_data: str, method: str) -> Image:

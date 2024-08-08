@@ -13,11 +13,9 @@
 use pyo3::prelude::*;
 
 pub mod heavyhex;
-pub mod heavyhex_decode;
 mod graph;
 mod mock;
 mod utils;
-
 
 #[pymodule]
 fn gem_core(m: &Bound<PyModule>) -> PyResult<()> {

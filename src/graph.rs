@@ -183,14 +183,14 @@ pub struct DecodeEdge {
     pub neighbor0: QubitIndex,
     pub neighbor1: QubitIndex,
     pub bit_index: Option<BitIndex>,
-    pub is_decoding_edge: bool,
+    pub is_decode_variable: bool,
     pub keep_in_snake: bool,
 }
 
 impl WriteDot for DecodeEdge {
     fn to_dot(&self) -> String {
         let mut options = Vec::<String>::new();
-        if self.is_decoding_edge {
+        if self.is_decode_variable {
             options.push(format!("color=blue"));
             options.push(format!("penwidth=2.5"));
         } else {

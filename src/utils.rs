@@ -14,6 +14,7 @@ use std::io::Write;
 
 use hashbrown::HashSet;
 
+use itertools::Itertools;
 use petgraph::stable_graph::StableUnGraph;
 use crate::graph::*;
 
@@ -34,7 +35,7 @@ pub(crate) fn to_undirected(
         })
         .collect::<HashSet<_>>()
         .into_iter()
-        .collect::<Vec<_>>();
+        .collect_vec();
     undirected.sort_unstable_by_key(|p| p.0);
     let mut unique_elms: Vec<_> = undirected
         .iter()

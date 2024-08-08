@@ -157,5 +157,5 @@ class GemExperiment(BaseExperiment):
     
     def _metadata(self) -> dict[str, Any]:
         metadata = super()._metadata()
-        metadata["coupling_map"] = self.plaquettes.coupling_map
+        metadata["coupling_map"] = self.plaquettes._coupling_map
         return metadata

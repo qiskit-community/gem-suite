@@ -99,7 +99,7 @@ pub(super) fn build_plaquette_graph(
     let nodes = plaquette_qubits_map
         .keys()
         .map(|i| PlaquetteNode {index: *i})
-        .collect::<Vec<_>>();
+        .collect_vec();
     let edges = plaquette_qubits_map
         .iter()
         .tuple_combinations::<(_, _)>()
@@ -114,7 +114,7 @@ pub(super) fn build_plaquette_graph(
                 }
             }
         )
-        .collect::<Vec<_>>();
+        .collect_vec();
     let mut graph = StableUnGraph::<PlaquetteNode, PlaquetteEdge>::with_capacity(nodes.len(), edges.len());
     let mut node_map = HashMap::<usize, NodeIndex>::new();
     for node in nodes {
@@ -155,7 +155,7 @@ pub(super) fn build_decode_graph(
                 None
             }
         })
-        .collect::<Vec<_>>();
+        .collect_vec();
     site_qubits.sort_unstable_by_key(|q| q.index);
     for (bi, q) in site_qubits.iter_mut().enumerate() {
         q.bit_index = Some(bi);
@@ -168,7 +168,7 @@ pub(super) fn build_decode_graph(
                 let neighbors = qubit_graph
                     .neighbors(ni)
                     .map(|mi| qubit_graph.node_weight(mi).unwrap().index)
-                    .collect::<Vec<_>>();
+                    .collect_vec();
                 if neighbors.len() != 2 {
                     panic!("Bond qubit doesn't have two site neighbors. Check if the lattice is heavy hex.")
                 }
@@ -177,14 +177,14 @@ pub(super) fn build_decode_graph(
                     neighbor0: neighbors[0],
                     neighbor1: neighbors[1],
                     bit_index: None,
-                    is_decoding_edge: false,
+                    is_decode_variable: false,
                     keep_in_snake: true,
                 })
             } else {
                 None
             }
         })
-        .collect::<Vec<_>>();
+        .collect_vec();
     bond_qubits.sort_unstable_by_key(|q| q.index);
     for (bi, q) in bond_qubits.iter_mut().enumerate() {
         q.bit_index = Some(bi);
@@ -220,7 +220,7 @@ pub(super) fn build_decode_graph(
             }
         }
     }
-    let pos_eidx_tup = bond_by_row.values().collect::<Vec<_>>();
+    let pos_eidx_tup = bond_by_row.values().collect_vec();
     if pos_eidx_tup.len() > 1 {
         let center_row0 = pos_eidx_tup[0].iter().fold(0, |acc, v| acc + v.0) as f64 / pos_eidx_tup[0].len() as f64;
         let center_row1 = pos_eidx_tup[1].iter().fold(0, |acc, v| acc + v.0) as f64 / pos_eidx_tup[1].len() as f64;
@@ -255,12 +255,8 @@ pub(super) fn build_decode_graph(
         let p0_qubits = plaquette_qubits_map[&plq_edge.neighbor0].iter().collect::<HashSet<_>>();
         let p1_qubits = plaquette_qubits_map[&plq_edge.neighbor1].iter().collect::<HashSet<_>>();
         for qi in p0_qubits.intersection(&p1_qubits) {
-            if edge_map.contains_key(*qi) {
-                if let Some(decode_edge) = edge_map.get(*qi) {
-                    decoding_edges.insert(decode_edge.to_owned());
-                } else {
-                    panic!("Bond qubit {} is not included in the decoding graph.", *qi)
-                }
+            if let Some(decode_edge) = edge_map.get(*qi) {
+                decoding_edges.insert(decode_edge.to_owned());
             }
         }
     }
@@ -272,7 +268,7 @@ pub(super) fn build_decode_graph(
             if !plq_qubits.contains(&nw.index) {
                 continue;
             }
-            let neighbors = decode_graph.neighbors(ni).collect::<Vec<_>>();
+            let neighbors = decode_graph.neighbors(ni).collect_vec();
             if neighbors.len() == 2 {
                 let boundary_edge = decode_graph.find_edge(ni, neighbors[0]).unwrap();
                 decoding_edges.insert(boundary_edge);
@@ -284,7 +280,7 @@ pub(super) fn build_decode_graph(
     // Set decoding flag
     for ei in decoding_edges {
         let ew = decode_graph.edge_weight_mut(ei).unwrap();
-        ew.is_decoding_edge = true;
+        ew.is_decode_variable = true;
     }
     decode_graph
 }
@@ -419,7 +415,7 @@ fn annotate_edges(
         let plq_nodes = plaquette_qubits
             .iter()
             .map(|qi| node_map[qi])
-            .collect::<Vec<_>>();
+            .collect_vec();
         let get_xy = |n: &NodeIndex| -> (usize, usize) {
             qubit_graph.node_weight(*n).unwrap().coordinate.unwrap()
         };
@@ -501,7 +497,7 @@ fn assign_opgroup_recursive(
     weight.group = Some(group);
     let neighbor_sites: Vec<_> = graph
         .neighbors(node)
-        .flat_map(|n| graph.neighbors(n).collect::<Vec<_>>())
+        .flat_map(|n| graph.neighbors(n).collect_vec())
         .collect();
     let next_group = match group {
         OpGroup::A => OpGroup::B,
@@ -510,4 +506,70 @@ fn assign_opgroup_recursive(
     for n_site in neighbor_sites {
         assign_opgroup_recursive(n_site, graph, next_group)
     }
+}
+
+
+/// Traverse snake graph and returns a vector of three bit index tuple
+/// (gauge, site, bond) that draw snake pattern in one stroke.
+pub(super) fn traverse_snake(
+    graph: &StableUnGraph<DecodeNode, DecodeEdge>,
+) -> Vec<(usize, usize, usize)> {
+    let snake_ends = graph
+        .node_indices()
+        .filter_map(|ni| {
+            let n_neighbors = graph
+                .neighbors(ni)
+                .fold(0_usize, |sum, mi| {
+                    let ei = graph.find_edge(ni, mi).unwrap();
+                    if graph.edge_weight(ei).unwrap().keep_in_snake {
+                        sum + 1
+                    } else {
+                        sum
+                    }
+                });
+            if n_neighbors == 1 {
+                Some(ni)
+            } else {
+                None
+            }
+        })
+        .collect_vec();
+    if snake_ends.len() != 2 {
+        panic!(
+            "The snake graph has more than two end nodes. Likely invalid plaquette sublattice."
+        )
+    }
+    let start_node = std::cmp::min_by_key(
+        snake_ends[0], 
+        snake_ends[1], 
+        |ni| graph.node_weight(*ni).unwrap().bit_index.unwrap()
+    );
+    let mut visited = Vec::<NodeIndex>::with_capacity(graph.node_count());
+    let mut this = start_node;
+    let mut snake_edge = Vec::<(usize, usize, usize)>::new();
+    loop {
+        let neighbors = graph
+            .neighbors(this)
+            .filter_map(|ni| {
+                let ei = graph.find_edge(this, ni).unwrap();
+                if !visited.contains(&ni) & graph.edge_weight(ei).unwrap().keep_in_snake {
+                    Some((ni, ei))
+                } else {
+                    None
+                }
+            })
+            .collect_vec();
+        let next = match neighbors.len() {
+            1 => neighbors[0],
+            0 => break,
+            _ => panic!("Snake graph is not in one stroke."),
+        };
+        let gauge = graph.node_weight(next.0).unwrap().bit_index.unwrap();
+        let site = graph.node_weight(this).unwrap().bit_index.unwrap();
+        let bond = graph.edge_weight(next.1).unwrap().bit_index.unwrap();
+        visited.push(this);
+        this = next.0;
+        snake_edge.push((gauge, site, bond));
+    }
+    snake_edge
 }
