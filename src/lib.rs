@@ -23,5 +23,6 @@ fn gem_core(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<heavyhex::PyQubit>()?;
     m.add_class::<heavyhex::PyPlaquette>()?;
     m.add_class::<heavyhex::PyScheduledGate>()?;
+    m.add_function(wrap_pyfunction!(heavyhex::visualization::visualize_plaquette_with_noise, m)?)?;
     Ok(())
 }

@@ -81,7 +81,7 @@ impl WriteDot for QubitNode {
         match self.coordinate {
             Some(xy) => {
                 options.push(format!("pos=\"{},-{}\"", xy.0, xy.1));
-                options.push(format!("pin=True"))
+                options.push(format!("pin=True"));
             },
             None => {},
         }
@@ -135,7 +135,7 @@ pub struct PlaquetteNode {
 
 impl WriteDot for PlaquetteNode {
     fn to_dot(&self) -> String {
-        format!("{} [label=\"P{}\", shape=\"hexagon\", width=0.81];", self.index, self.index)
+        format!("{} [label=P{}, shape=hexagon, width=0.81];", self.index, self.index)
     }
 }
 
@@ -153,6 +153,7 @@ impl WriteDot for PlaquetteEdge {
 }
 
 
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct DecodeNode {
     pub index: QubitIndex,
     pub bit_index: Option<BitIndex>,

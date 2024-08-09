@@ -23,6 +23,7 @@ from qiskit_experiments.framework import BaseExperiment, Options
 from qiskit.providers.backend import BackendV2
 from qiskit.circuit import QuantumCircuit, Parameter
 
+from .analysis import GemAnalysis
 from .plaquettes import PlaquetteLattice
 
 
@@ -50,12 +51,11 @@ class GemExperiment(BaseExperiment):
             RuntimeError: When plaquettes are selected by index but backend is not provided.
         """
         if not isinstance(plaquettes, PlaquetteLattice):
-            full_plaquettes = PlaquetteLattice(backend=backend)
-            plaquettes = full_plaquettes.filter(includes=plaquettes)
+            plaquettes = PlaquetteLattice.from_backend(backend).filter(includes=plaquettes)
         qubits = [q.index for q in plaquettes.qubits()]
         super().__init__(
             physical_qubits=qubits,
-            analysis=None,
+            analysis=GemAnalysis(plaquettes=plaquettes),
             backend=backend,            
         )
         self._plaquettes = plaquettes
@@ -96,7 +96,7 @@ class GemExperiment(BaseExperiment):
                 are used. If ``angles`` is set, these parameters are ignored.
         """
         options = super()._default_experiment_options()
-        options.schedule_idx = None
+        options.schedule_idx = 5
         options.sweep_type = "A"
 
         options.min_angle = 0
@@ -131,6 +131,7 @@ class GemExperiment(BaseExperiment):
             }
             circ.h(range(self.num_qubits))
             for gate_group in sched_iter:
+                circ.barrier()
                 for gate in gate_group:
                     if gate.group == self.experiment_options.sweep_type:
                         angle = self.parameter
@@ -141,6 +142,7 @@ class GemExperiment(BaseExperiment):
                         self.physical_qubits.index(gate.index0),                        
                         self.physical_qubits.index(gate.index1),
                     )
+            circ.barrier()
             circ.h(bond_idxs)
             circ.barrier()
             circ.measure(range(self.num_qubits), range(self.num_qubits))
@@ -157,5 +159,6 @@ class GemExperiment(BaseExperiment):
     
     def _metadata(self) -> dict[str, Any]:
         metadata = super()._metadata()
-        metadata["coupling_map"] = self.plaquettes._coupling_map
+        metadata["connectivity"] = self.plaquettes.connectivity()
+        metadata["plaquette_qubit_map"] = {p.index: p.qubits for p in self.plaquettes.plaquettes()}
         return metadata

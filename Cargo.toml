@@ -2,13 +2,14 @@
 name = "gem_core"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.70"
+license = "Apache-2.0"
 
 [lib]
 name = "gem_core"
 crate-type = ["cdylib"]
 
 [dependencies]
-thiserror = "1.0"
 bitvec = "1.0.1"
 ahash = "0.8.6"
 hashbrown = "0.14.3"
@@ -20,5 +21,5 @@ itertools = "0.13.0"
 fusion-blossom = "0.2.10"
 
 [dependencies.pyo3]
-version = "0.21.2"
+version = "0.22.2"
 features = ["extension-module", "hashbrown"]

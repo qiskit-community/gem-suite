@@ -11,6 +11,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
+pub mod visualization;
 mod graph_builder;
 mod simple_cycle;
 
@@ -27,7 +28,7 @@ use fusion_blossom::mwpm_solver::{PrimalDualSolver, SolverSerial};
 use fusion_blossom::util::{SolverInitializer, SyndromePattern};
 use lazy_static::lazy_static;
 
-use pyo3::{prelude::*, types::PyString};
+use pyo3::{prelude::*, types::{PyString, PyType}};
 
 use crate::graph::*;
 use crate::utils::{ungraph_to_dot, to_undirected, decode_magnetization};
@@ -204,6 +205,7 @@ impl PyScheduledGate {
 
 
 #[pyclass]
+#[derive(Debug, Clone)]
 /// Plaquette representation of heavy hex lattice devices.
 /// Graph node and edges are immediately annotated for GEM experiments.
 /// Qubits are classified into either site or bond type,
@@ -220,24 +222,36 @@ pub struct PyHeavyHexLattice {
 #[pymethods]
 impl PyHeavyHexLattice{
 
-    /// Create new PyHeavyHexPlaquette object from the device coupling map.
+    /// Create new PyHeavyHexPlaquette from the device coupling map.
     /// 
     /// # Arguments
-    /// 
     /// * `coupling_map`: Coupling pairs, e.g. [(0, 1), (1, 0), (1, 2), ...],
     ///     which can be either uni or bi-directional.
     #[new]
     pub fn new(coupling_map: Vec<(usize, usize)>) -> Self {
         let (qubits, connectivity) = to_undirected(&coupling_map);
-        let plaquettes = heavyhex_cycle(&qubits, &connectivity)
+        let plaquette_qubits_map = heavyhex_cycle(&qubits, &connectivity)
             .into_iter()
             .enumerate()
             .collect::<HashMap<_, _>>();
-        PyHeavyHexLattice::from_plaquettes(plaquettes, connectivity)
+        PyHeavyHexLattice::with_plaquettes(plaquette_qubits_map, connectivity)
+    }
+
+    /// Create new PyHeavyHexPlaquette from already inspected topology data.
+    /// 
+    /// # Arguments
+    /// * `plaquette_qubits_map`: Mapping from plaquette index to component physical qubits.
+    /// * `connectivity`: Unidirectional coupling between physical qubits.
+    #[classmethod]
+    pub fn from_plaquettes(
+        _: &Bound<'_, PyType>,
+        plaquette_qubits_map: HashMap<usize, Vec<usize>>,
+        connectivity: Vec<(usize, usize)>,
+    ) -> Self {
+        PyHeavyHexLattice::with_plaquettes(plaquette_qubits_map, connectivity)
     }
 
     /// Return dot script representing the annotated qubit lattice 
-    /// to create image with the graphviz drawer.
     pub fn qubit_graph_dot(&self, py: Python) -> PyResult<Option<PyObject>> {
         let buf = ungraph_to_dot(&self.qubit_graph);
         Ok(Some(
@@ -246,7 +260,6 @@ impl PyHeavyHexLattice{
     }
 
     /// Return dot script representing the plaquette lattice 
-    /// to create image with the graphviz drawer.
     pub fn plaquette_graph_dot(&self, py: Python) -> PyResult<Option<PyObject>> {
         let buf = ungraph_to_dot(&self.plaquette_graph);
         Ok(Some(
@@ -255,7 +268,6 @@ impl PyHeavyHexLattice{
     }
 
     /// Return dot script representing the annotated qubit graph for decoding
-    /// to create image with the graphviz drawer.
     pub fn decode_graph_dot(&self, py: Python) -> PyResult<Option<PyObject>> {
         let buf = ungraph_to_dot(&self.decode_graph);
         Ok(Some(
@@ -315,9 +327,21 @@ impl PyHeavyHexLattice{
         nodes
     }
 
-    /// Create new sublattice.
+    /// Return connectivity of the qubits in this lattice.
+    pub fn connectivity(&self) -> Vec<(usize, usize)> {
+        self.qubit_graph
+            .edge_weights()
+            .map(|ew| (ew.neighbor0, ew.neighbor1))
+            .collect_vec()
+    }
+
+    /// Create new sublattice from subset of plaquettes.
     pub fn filter(&self, includes: Vec<usize>) -> Self {
         // TODO: Add validation for disconnected index.
+        if self.plaquette_qubits_map.keys().all(|pi| includes.contains(pi)) {
+            // Nothing filtered out
+            return self.clone()
+        }
         let new_plaquettes = self.plaquette_qubits_map
             .iter()
             .filter_map(|item| {
@@ -332,7 +356,7 @@ impl PyHeavyHexLattice{
             .edge_weights()
             .map(|e| (e.neighbor0, e.neighbor1))
             .collect_vec();
-        PyHeavyHexLattice::from_plaquettes(new_plaquettes, connectivity)
+        PyHeavyHexLattice::with_plaquettes(new_plaquettes, connectivity)
     }
 
     /// Schedule entangling gates to build GEM circuit.
@@ -573,11 +597,12 @@ impl PyHeavyHexLattice{
 
 impl PyHeavyHexLattice {
 
-    pub fn from_plaquettes(
-        plaquettes: HashMap<usize, Vec<usize>>,
+    /// Create new plaquette lattice object for heavy hex topology.
+    pub fn with_plaquettes(
+        plaquette_qubits_map: HashMap<usize, Vec<usize>>,
         connectivity: Vec<(usize, usize)>,
     ) -> Self {
-        let mut plq_qubits: Vec<usize> = plaquettes
+        let mut plq_qubits: Vec<usize> = plaquette_qubits_map
             .values()
             .map(|qs| qs.to_owned())
             .flatten()
@@ -586,12 +611,22 @@ impl PyHeavyHexLattice {
             .collect_vec();
         plq_qubits.sort_unstable();
 
-        let qubit_graph = build_qubit_graph(&plq_qubits, &connectivity, &plaquettes);
-        let plaquette_graph = build_plaquette_graph(&plaquettes);
-        let decode_graph = build_decode_graph(&qubit_graph, &plaquette_graph, &plaquettes);
-        
+        let qubit_graph = build_qubit_graph(
+            &plq_qubits, 
+            &connectivity, 
+            &plaquette_qubits_map,
+        );
+        let plaquette_graph = build_plaquette_graph(
+            &plaquette_qubits_map,
+        );
+        let decode_graph = build_decode_graph(
+            &qubit_graph, 
+            &plaquette_graph,
+            &plaquette_qubits_map,
+        );
+
         PyHeavyHexLattice {
-            plaquette_qubits_map: plaquettes, 
+            plaquette_qubits_map, 
             qubit_graph, 
             plaquette_graph,
             decode_graph,

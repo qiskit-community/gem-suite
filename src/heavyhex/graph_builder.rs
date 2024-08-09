@@ -71,7 +71,7 @@ pub(super) fn build_qubit_graph(
         .unwrap();
     let node_weight = graph.node_weight_mut(min_node).unwrap();
     node_weight.coordinate = Some((0_usize, 0_usize));
-    assign_coordinate_recursive(&min_node, &mut graph);
+    assign_qubit_coordinate_recursive(&min_node, &mut graph);
     // Check orientation.
     // Old IBM device may have different qubit index convention.
     let all_coords: Vec<_> = graph
@@ -97,8 +97,10 @@ pub(super) fn build_plaquette_graph(
     plaquette_qubits_map: &HashMap<PlaquetteIndex, Vec<QubitIndex>>,
 ) -> StableUnGraph<PlaquetteNode, PlaquetteEdge> {
     let nodes = plaquette_qubits_map
-        .keys()
-        .map(|i| PlaquetteNode {index: *i})
+        .iter()
+        .collect::<std::collections::BTreeMap<_, _>>()
+        .into_keys()
+        .map(|i| PlaquetteNode { index: *i })
         .collect_vec();
     let edges = plaquette_qubits_map
         .iter()
@@ -286,7 +288,7 @@ pub(super) fn build_decode_graph(
 }
 
 
-fn assign_coordinate_recursive(
+fn assign_qubit_coordinate_recursive(
     node: &NodeIndex,
     graph: &mut StableUnGraph<QubitNode, QubitEdge>,
 ) -> () {
@@ -318,7 +320,7 @@ fn assign_coordinate_recursive(
                 }
             };
             qj_mut.coordinate = new_xy;
-            assign_coordinate_recursive(&nj, graph);
+            assign_qubit_coordinate_recursive(&nj, graph);
         }
     }
 }

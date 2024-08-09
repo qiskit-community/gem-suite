@@ -14,62 +14,45 @@
 
 from __future__ import annotations
 
-import subprocess
-import tempfile
-import io
-
 from collections import namedtuple
-from typing import cast, TYPE_CHECKING, Iterator
-
-try:
-    from PIL import Image  # type: ignore
-    HAS_PILLOW = True
-except ImportError:
-    HAS_PILLOW = False
-
-if TYPE_CHECKING:
-    from PIL import Image  # type: ignore
+from typing import Iterator
 
 import numpy as np
+from qiskit_experiments.framework import FigureData
 from qiskit.providers import BackendV2
 
 from gem_suite.gem_core import PyHeavyHexLattice, PyQubit, PyPlaquette, PyScheduledGate
+from .plot_utils import dot_to_mplfigure
 
 ScheduledGate = namedtuple("ScheduledGate", ["q0", "q1", "group"])
-DecodeOutcome = namedtuple("DecodeOutcome", ["counts", "w_ops", "zxz_ops", "f", "g"])
+DecodeOutcome = namedtuple("DecodeOutcome", ["w_ops", "zxz_ops", "f", "g"])
 
 
 class PlaquetteLattice:
     """Plaquette representation of Qiskit Backend."""
-
-    def __init__(self, backend: BackendV2):
-        """Create new plaquette lattice from backend.
+    
+    def __init__(self, lattice: PyHeavyHexLattice):
+        """Create new plaquette lattice.
         
         Args:
-            backend: Qiskit Backend.
+            lattice: Rust plaquette core.
         """
+        self._core = lattice
+        
+    @classmethod
+    def from_backend(cls, backend: BackendV2):
+        """Create new instance from Qiskit Backend."""
         if hasattr(backend, "configuration"):
-            cmap = backend.configuration().coupling_map
+            cmap = [tuple(qs) for qs in backend.configuration().coupling_map]
         else:
-            cmap = list(backend.coupling_map)
-        self._core = PyHeavyHexLattice(cmap)
-        self._coupling_map = cmap
-
+            cmap = list(backend.coupling_map)        
+        return PlaquetteLattice(PyHeavyHexLattice(cmap))
+    
     @classmethod
     def from_coupling_map(cls, coupling_map: list[tuple[int, int]]):
-        """Build plaquette lattice from coupling map.
-        
-        Args:
-            coupling_map: List of connected qubit pair.
-        
-        Returns:
-            New PlaquetteLattice instance.
-        """
-        new_lattice = PyHeavyHexLattice(coupling_map)
-        instance = object.__new__(PlaquetteLattice)
-        instance._core = new_lattice
-        return instance
-    
+        """Create new instance from device coupling map."""
+        return PlaquetteLattice(PyHeavyHexLattice([tuple(qs) for qs in coupling_map]))
+
     def qubits(self) -> Iterator[PyQubit]:
         """Yield annotated qubit dataclasses."""
         yield from self._core.qubits()
@@ -78,17 +61,24 @@ class PlaquetteLattice:
         """Yield plaquette dataclasses."""
         yield from self._core.plaquettes()
     
-    def draw_qubits(self) -> Image:
-        """Draw coupling graph with qubits in the lattice."""
-        return _to_image(self._core.qubit_graph_dot(), "fdp")
-        
-    def draw_plaquettes(self) -> Image:
-        """Draw coupling graph with plaquette in the lattice."""
-        return _to_image(self._core.plaquette_graph_dot(), "neato")
+    def connectivity(self) -> list[tuple[int, int]]:
+        """Return unidirectional qubit connectivity."""
+        return self._core.connectivity()
     
-    def draw_decode_graph(self) -> Image:
+    def draw_qubits(self) -> FigureData:
+        """Draw coupling graph with qubits in the lattice."""
+        svg_fig = dot_to_mplfigure(self._core.qubit_graph_dot(), "fdp", 300)
+        return FigureData(svg_fig, name="qubit_graph")
+        
+    def draw_plaquettes(self) -> FigureData:
+        """Draw coupling graph with plaquette in the lattice."""
+        svg_fig = dot_to_mplfigure(self._core.plaquette_graph_dot(), "neato", 300)
+        return FigureData(svg_fig, name="plaquette_graph")
+    
+    def draw_decode_graph(self) -> FigureData:
         """Draw qubit graph with annotation for decoding."""
-        return _to_image(self._core.decode_graph_dot(), "fdp")
+        svg_fig = dot_to_mplfigure(self._core.decode_graph_dot(), "fdp", 300)
+        return FigureData(svg_fig, name="decode_graph")
     
     def filter(self, includes: list[int]) -> PlaquetteLattice:
         """Create new plaquette lattice instance with subset of plaquettes.
@@ -101,10 +91,7 @@ class PlaquetteLattice:
         Returns:
             New plaquette lattice instance.
         """
-        new_lattice = self._core.filter(includes)
-        instance = object.__new__(PlaquetteLattice)
-        instance._core = new_lattice
-        return instance
+        return PlaquetteLattice(self._core.filter(includes))
     
     def build_gate_schedule(self, index: int) -> Iterator[list[PyScheduledGate]]:
         """Yield list of entangling gates that can be simultaneously applied.
@@ -132,7 +119,7 @@ class PlaquetteLattice:
         self, 
         counts: dict[str, int],
         return_counts: bool = False,
-    ) -> DecodeOutcome:
+    ) -> DecodeOutcome | tuple[DecodeOutcome, dict[str, int]]:
         """Decode count dictionary of the experiment result and analyze.
         
         Args:
@@ -140,38 +127,13 @@ class PlaquetteLattice:
             return_counts: Set True to return count dictionary.
         
         Returns:
-            Outcome consisting of new count dictionary (keyed on site bits),
-            plaquette and ZXZ bond operators,
-            and f and g values associated with the prepared state magnetization.
+            Decoded outcomes including plaquette and ZXZ bond operators,
+            and f and g quantities associated with the prepared state magnetization.
+            When the return_counts is set, this returns a tuple of
+            outcome and count dictionary keyed on decoded site qubit bitstring.
         """
-        return DecodeOutcome(*self._core.decode_outcomes(counts, return_counts))
-
-
-def _to_image(dot_data: str, method: str) -> Image:
-        if not HAS_PILLOW:
-            raise ImportError(
-                "Pillow is necessary to use draw(). "
-                "It can be installed with 'pip install pydot pillow'"
-            )
-        try:
-            subprocess.run(
-                ["dot", "-V"],
-                cwd=tempfile.gettempdir(),
-                check=True,
-                capture_output=True,
-            )
-        except Exception:
-            raise RuntimeError(
-                "Graphviz could not be found or run. "
-                "This function requires that Graphviz is installed."
-            )
-        dot_result = subprocess.run(
-            [method, "-T", "png"],
-            input=cast(str, dot_data).encode("utf-8"),
-            capture_output=True,
-            encoding=None,
-            check=True,
-            text=False,
-        )
-        dot_bytes_image = io.BytesIO(dot_result.stdout)
-        return Image.open(dot_bytes_image)
+        out = self._core.decode_outcomes(counts, return_counts)
+        outcome = DecodeOutcome(*out[1:])
+        if return_counts:
+            return outcome, out[0]
+        return outcome
