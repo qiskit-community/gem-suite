@@ -100,7 +100,8 @@ pub(super) fn build_plaquette_graph(
         .iter()
         .collect::<std::collections::BTreeMap<_, _>>()
         .into_keys()
-        .map(|i| PlaquetteNode { index: *i })
+        .enumerate()
+        .map(|(si, pi)| PlaquetteNode { index: *pi, syndrome_index: si })
         .collect_vec();
     let edges = plaquette_qubits_map
         .iter()
@@ -179,7 +180,7 @@ pub(super) fn build_decode_graph(
                     neighbor0: neighbors[0],
                     neighbor1: neighbors[1],
                     bit_index: None,
-                    is_decode_variable: false,
+                    variable_index: None,
                     keep_in_snake: true,
                 })
             } else {
@@ -249,16 +250,19 @@ pub(super) fn build_decode_graph(
     // or a neighbor of a site qubit with degree-2 connectivity, i.e. boundary.
     let edge_map = decode_graph
         .edge_indices()
-        .map(|e| (decode_graph.edge_weight(e).unwrap().index, e))
+        .map(|e| {
+            let ew = decode_graph.edge_weight(e).unwrap();
+            (ew.index, (ew.bit_index.unwrap(), e))
+        })
         .collect::<HashMap<_, _>>();
-    let mut decoding_edges = HashSet::<EdgeIndex>::new();
+    let mut decoding_edges = std::collections::BTreeMap::<usize, EdgeIndex>::new();
     // Find shared bonds
     for plq_edge in plaquette_graph.edge_weights() {
         let p0_qubits = plaquette_qubits_map[&plq_edge.neighbor0].iter().collect::<HashSet<_>>();
         let p1_qubits = plaquette_qubits_map[&plq_edge.neighbor1].iter().collect::<HashSet<_>>();
         for qi in p0_qubits.intersection(&p1_qubits) {
             if let Some(decode_edge) = edge_map.get(*qi) {
-                decoding_edges.insert(decode_edge.to_owned());
+                decoding_edges.insert(decode_edge.0, decode_edge.1);
             }
         }
     }
@@ -273,17 +277,21 @@ pub(super) fn build_decode_graph(
             let neighbors = decode_graph.neighbors(ni).collect_vec();
             if neighbors.len() == 2 {
                 let boundary_edge = decode_graph.find_edge(ni, neighbors[0]).unwrap();
-                decoding_edges.insert(boundary_edge);
+                let bit_idx = decode_graph.edge_weight(boundary_edge).unwrap().bit_index.unwrap();
+                decoding_edges.insert(bit_idx, boundary_edge);
                 // Move to next plaquette
                 break;
             }
         }
     }
     // Set decoding flag
-    for ei in decoding_edges {
-        let ew = decode_graph.edge_weight_mut(ei).unwrap();
-        ew.is_decode_variable = true;
-    }
+    decoding_edges
+        .into_values()
+        .enumerate()
+        .for_each(|(i, ei)| {
+            let ew = decode_graph.edge_weight_mut(ei).unwrap();
+            ew.variable_index = Some(i);
+        });
     decode_graph
 }
 
@@ -574,4 +582,33 @@ pub(super) fn traverse_snake(
         snake_edge.push((gauge, site, bond));
     }
     snake_edge
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::heavyhex::PyHeavyHexLattice;
+    use crate::mock::FALCON_CMAP;
+
+    #[test]
+    fn test_traverse_snake() {
+        let coupling_map = FALCON_CMAP.lock().unwrap().to_owned();
+        let lattice = PyHeavyHexLattice::new(coupling_map);
+        let snake = traverse_snake(&lattice.decode_graph);
+        assert_eq!(
+            snake,
+            vec![
+                (6, 8, 8),
+                (4, 6, 6),
+                (2, 4, 3),
+                (0, 2, 1),
+                (1, 0, 0),
+                (3, 1, 2),
+                (5, 3, 4),
+                (7, 5, 7),
+                (9, 7, 9),
+            ]
+        )
+    }
 }

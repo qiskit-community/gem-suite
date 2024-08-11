@@ -14,6 +14,7 @@
 pub type PlaquetteIndex = usize;
 pub type QubitIndex = usize;
 pub type BitIndex = usize;
+pub type SyndromeIndex = usize;
 
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -131,6 +132,7 @@ impl WriteDot for QubitEdge {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct PlaquetteNode {
     pub index: PlaquetteIndex,
+    pub syndrome_index: SyndromeIndex,
 }
 
 impl WriteDot for PlaquetteNode {
@@ -184,14 +186,14 @@ pub struct DecodeEdge {
     pub neighbor0: QubitIndex,
     pub neighbor1: QubitIndex,
     pub bit_index: Option<BitIndex>,
-    pub is_decode_variable: bool,
+    pub variable_index: Option<BitIndex>,
     pub keep_in_snake: bool,
 }
 
 impl WriteDot for DecodeEdge {
     fn to_dot(&self) -> String {
         let mut options = Vec::<String>::new();
-        if self.is_decode_variable {
+        if self.variable_index.is_some() {
             options.push(format!("color=blue"));
             options.push(format!("penwidth=2.5"));
         } else {
