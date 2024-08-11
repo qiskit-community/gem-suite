@@ -15,9 +15,11 @@
 from __future__ import annotations
 
 from collections import namedtuple
-from typing import Iterator
+from typing import Iterator, Callable
 
 import numpy as np
+from pymatching import Matching
+from scipy.sparse import csc_matrix
 from qiskit_experiments.framework import FigureData
 from qiskit.providers import BackendV2
 
@@ -106,24 +108,23 @@ class PlaquetteLattice:
         """
         yield from self._core.build_gate_schedule(index)
     
-    def check_matrix(self) -> np.ndarray:
-        """Create check matrix from the plaquette lattice.
-        
-        This returns a two-dimensional binary matrix with dimension of
-        (num syndrome, num bond qubits).
-        """
-        hvec, dims = self._core.check_matrix()
-        return np.array(hvec, dtype=bool).reshape(dims)
-    
+    def check_matrix_csc(self) -> csc_matrix:
+        """Create check matrix from the plaquette lattice."""
+        hvec, dims = self._core.check_matrix_csc()
+        data = len(hvec[0])
+        return csc_matrix((data, hvec), dims, dtype=bool)
+            
     def decode_outcomes(
         self, 
         counts: dict[str, int],
+        decoder: str = "pymatching",
         return_counts: bool = False,
     ) -> DecodeOutcome | tuple[DecodeOutcome, dict[str, int]]:
         """Decode count dictionary of the experiment result and analyze.
         
         Args:
             counts: Count dictionary of single circuit.
+            decoder: MWPM decoder to decode count string. Either "pymatching" or "fusion-blossom".
             return_counts: Set True to return count dictionary.
         
         Returns:
@@ -132,8 +133,27 @@ class PlaquetteLattice:
             When the return_counts is set, this returns a tuple of
             outcome and count dictionary keyed on decoded site qubit bitstring.
         """
-        out = self._core.decode_outcomes(counts, return_counts)
-        outcome = DecodeOutcome(*out[1:])
+        if decoder == "fusion-blossom":
+            out = self._core.decode_outcomes(counts, return_counts)
+            outcome = DecodeOutcome(*out[1:])
+        elif decoder == "pymatching":
+            hvec, dims = self._core.check_matrix_csc()
+            data = np.ones(len(hvec[0]))
+            solver = _build_batch_decoder(csc_matrix((data, hvec), dims, dtype=np.bool_))
+        else:
+            raise ValueError(f"MWPM decoder {decoder} is not supported.")
         if return_counts:
             return outcome, out[0]
         return outcome
+
+
+def _build_batch_decoder(check_matrix) -> Callable:
+    
+    solver = Matching.from_check_matrix(check_matrix)
+    
+    def _batched_solver(shots: list[int], shape: tuple[int, int]):
+        batch_in = np.array(shots, dtype=np.bool_).reshape(shape)
+        out = solver.decode_batch(shots=batch_in)
+        return out.astype(np.bool_).flatten().tolist()
+    
+    return _build_batch_decoder

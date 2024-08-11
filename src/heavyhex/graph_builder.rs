@@ -44,7 +44,7 @@ lazy_static! {
 pub(super) fn build_qubit_graph(
     qubits: &Vec<usize>, 
     connectivity: &Vec<(usize, usize)>,
-    plaquette_qubits_map: &HashMap<PlaquetteIndex, Vec<QubitIndex>>,
+    plaquette_qubits_map: &std::collections::BTreeMap<PlaquetteIndex, Vec<QubitIndex>>,
 ) -> StableUnGraph<QubitNode, QubitEdge> {
     let mut graph: StableUnGraph<QubitNode, QubitEdge> = StableUnGraph::with_capacity(qubits.len(), connectivity.len());
     // Build graph
@@ -94,12 +94,10 @@ pub(super) fn build_qubit_graph(
 /// A graph node corresponds to a single heavy hex lattice,
 /// and an edge between nodes represents some shared qubits between plaquettes.
 pub(super) fn build_plaquette_graph(
-    plaquette_qubits_map: &HashMap<PlaquetteIndex, Vec<QubitIndex>>,
+    plaquette_qubits_map: &std::collections::BTreeMap<PlaquetteIndex, Vec<QubitIndex>>,
 ) -> StableUnGraph<PlaquetteNode, PlaquetteEdge> {
     let nodes = plaquette_qubits_map
-        .iter()
-        .collect::<std::collections::BTreeMap<_, _>>()
-        .into_keys()
+        .keys()
         .enumerate()
         .map(|(si, pi)| PlaquetteNode { index: *pi, syndrome_index: si })
         .collect_vec();
@@ -142,7 +140,7 @@ pub(super) fn build_plaquette_graph(
 pub(super) fn build_decode_graph(
     qubit_graph: &StableUnGraph<QubitNode, QubitEdge>,
     plaquette_graph: &StableUnGraph<PlaquetteNode, PlaquetteEdge>,
-    plaquette_qubits_map: &HashMap<PlaquetteIndex, Vec<QubitIndex>>,
+    plaquette_qubits_map: &std::collections::BTreeMap<PlaquetteIndex, Vec<QubitIndex>>,
 ) -> StableUnGraph<DecodeNode, DecodeEdge> {
     // Build unannotated site graph.
     let mut site_qubits = qubit_graph
@@ -415,7 +413,7 @@ fn annotate_nodes(qubit_graph: &mut StableUnGraph<QubitNode, QubitEdge>) -> () {
 
 fn annotate_edges(
     qubit_graph: &mut StableUnGraph<QubitNode, QubitEdge>,
-    plaquette_qubits_map: &HashMap<PlaquetteIndex, Vec<QubitIndex>>,
+    plaquette_qubits_map: &std::collections::BTreeMap<PlaquetteIndex, Vec<QubitIndex>>,
 ) -> () {
     let node_map = qubit_graph
         .node_indices()

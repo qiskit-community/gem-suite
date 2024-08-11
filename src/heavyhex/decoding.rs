@@ -16,6 +16,8 @@ use fusion_blossom::mwpm_solver::{PrimalDualSolver, SolverSerial};
 use fusion_blossom::util::{SolverInitializer, SyndromePattern};
 use itertools::Itertools;
 
+use pyo3::prelude::*;
+
 use crate::graph::*;
 use crate::utils::decode_magnetization;
 use super::graph_builder::traverse_snake;
@@ -97,7 +99,7 @@ pub(super) fn build_syndrome_pattern(
 /// and f and g values associated with decoded magnetization.
 pub(super) fn decode_outcomes_fb(
     lattice: &PyHeavyHexLattice,
-    counts: HashMap<String, usize>,
+    counts: &HashMap<String, usize>,
 ) -> (HashMap<String, usize>, Vec<f64>, Vec<f64>, (f64, f64), (f64, f64)) {
     let mut solver = build_mwpm_solver(&lattice);
     let decoding_bits = lattice.decode_graph
@@ -246,10 +248,7 @@ pub(super) fn decode_outcomes_fb(
 }
 
 
-/// Generate check matrix H of this plaquette lattice.
-/// Matrix is flattened and returned with dimension,
-/// where the first dimension is the size of parity check (plaquettes)
-/// and the second dimension is the size of variable (bond qubits).
+/// Generate check matrix of this plaquette lattice.
 pub(crate) fn check_matrix_csc(
     lattice: &PyHeavyHexLattice,
 ) -> ((Vec<usize>, Vec<usize>), (usize, usize)) {
@@ -281,6 +280,16 @@ pub(crate) fn check_matrix_csc(
     (row_col, (num_syndrome, num_variables))
 }
 
+
+// pub(super) fn decode_outcomes_pm(
+//     py: Python,
+//     solver: PyObject,
+//     lattice: &PyHeavyHexLattice,
+//     counts: &HashMap<String, usize>,
+// ) -> (HashMap<String, usize>, Vec<f64>, Vec<f64>, (f64, f64), (f64, f64)) {
+
+//     ()
+// }
 
 
 #[cfg(test)]
@@ -404,7 +413,7 @@ mod tests {
         let coupling_map = FALCON_CMAP.lock().unwrap().to_owned();
         let lattice = PyHeavyHexLattice::new(coupling_map);
         let outcomes = HashMap::<String, usize>::from([(format!("100111000111010001010"), 123)]);
-        let tmp = decode_outcomes_fb(&lattice, outcomes);
+        let tmp = decode_outcomes_fb(&lattice, &outcomes);
         let count = tmp.0;
         let w_ops = tmp.1;
         let zxz_ops = tmp.2;

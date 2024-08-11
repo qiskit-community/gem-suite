@@ -58,7 +58,7 @@ impl WriteDot for NoisyPlaquetteNode {
 #[pyfunction]
 pub fn visualize_plaquette_with_noise(
     py: Python,
-    plaquette_qubits_map: HashMap<PlaquetteIndex, Vec<QubitIndex>>,
+    plaquette_qubits_map: std::collections::BTreeMap<PlaquetteIndex, Vec<QubitIndex>>,
     noise_map: HashMap<usize, f64>,
 ) -> PyResult<Option<PyObject>> {
     let plaquette_graph = build_plaquette_graph(&plaquette_qubits_map);
