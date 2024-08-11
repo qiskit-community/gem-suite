@@ -2,9 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
@@ -19,15 +19,6 @@ import io
 
 from typing import cast, TYPE_CHECKING
 
-try:
-    from PIL import Image  # type: ignore
-    HAS_PILLOW = True
-except ImportError:
-    HAS_PILLOW = False
-
-if TYPE_CHECKING:
-    from PIL import Image  # type: ignore
-
 import pandas as pd
 import numpy as np
 from uncertainties import unumpy as unp
@@ -35,17 +26,27 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from qiskit_experiments.framework.matplotlib import get_non_gui_ax
 
+try:
+    from PIL import Image  # type: ignore
+
+    HAS_PILLOW = True
+except ImportError:
+    HAS_PILLOW = False
+
+if TYPE_CHECKING:
+    from PIL import Image  # type: ignore
+
 
 def plot_schedules(
     data: pd.DataFrame,
 ) -> tuple[Axes, tuple[np.ndarray, np.ndarray]]:
     """Plot individual data and average of them in dataframe.
-    
+
     Args:
         data: Filtered dataframe containing data to visualize.
-    
+
     Returns:
-        Matplotlib figure axis object and averaged data in ufloat format.    
+        Matplotlib figure axis object and averaged data in ufloat format.
     """
     axis: Axes = get_non_gui_ax()
     data = data.sort_values("theta")
@@ -96,13 +97,13 @@ def dot_to_mplfigure(
     rescale: int = 4,
 ) -> Figure:
     """Render dot script and return in matplotlib Figure format.
-    
+
     Args:
         dot_data: Input dot script.
         method: Drawing method.
         dpi: Dot per inch.
         rescale: Scaling factor of image to load PIL Image data in the matplotlib canvas.
-    
+
     Returns:
         Matplotlib Figure data written in SVG Backend.
         This backend doesn't support automatic rendering in Jupyter notebook environment.
@@ -119,11 +120,11 @@ def dot_to_mplfigure(
             check=True,
             capture_output=True,
         )
-    except Exception:
+    except Exception as ex:
         raise RuntimeError(
             "Graphviz could not be found or run. "
             "This function requires that Graphviz is installed."
-        )
+        ) from ex
     dot_result = subprocess.run(
         [method, "-T", "png"],
         input=cast(str, dot_data).encode("utf-8"),
@@ -134,7 +135,7 @@ def dot_to_mplfigure(
     )
     dot_bytes_image = io.BytesIO(dot_result.stdout)
     img = Image.open(dot_bytes_image)
-    
+
     # Convert into matplotlib axis object
     axis: Axes = get_non_gui_ax()
     fig = axis.get_figure()
@@ -142,5 +143,5 @@ def dot_to_mplfigure(
     fig.dpi = dpi
 
     axis.imshow(img)
-    axis.set_axis_off()    
+    axis.set_axis_off()
     return fig

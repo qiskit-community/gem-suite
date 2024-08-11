@@ -2,9 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
@@ -38,25 +38,28 @@ class GemExperiment(BaseExperiment):
         backend: BackendV2 | None,
     ):
         """Create new GEM experiment.
-        
+
         .. notes::
-            Current implementation supports only Heavy Hexagon lattice and measurement-based 2D protocol.
-        
+            Current implementation supports only Heavy Hexagon lattice
+            and measurement-based 2D protocol.
+
         Args:
             plaquettes: List of plaquette indices or configuired :class:`PlaquetteLattice`
                 instance to build GEM circuits on.
             backend: Qiskit Backend to run experiments.
-        
+
         Raises:
             RuntimeError: When plaquettes are selected by index but backend is not provided.
         """
         if not isinstance(plaquettes, PlaquetteLattice):
-            plaquettes = PlaquetteLattice.from_backend(backend).filter(includes=plaquettes)
+            plaquettes = PlaquetteLattice.from_backend(backend).filter(
+                includes=plaquettes
+            )
         qubits = [q.index for q in plaquettes.qubits()]
         super().__init__(
             physical_qubits=qubits,
             analysis=GemAnalysis(plaquettes=plaquettes),
-            backend=backend,            
+            backend=backend,
         )
         self._plaquettes = plaquettes
 
@@ -96,7 +99,7 @@ class GemExperiment(BaseExperiment):
                 are used. If ``angles`` is set, these parameters are ignored.
         """
         options = super()._default_experiment_options()
-        options.schedule_idx = 5
+        options.schedule_idx = None
         options.sweep_type = "A"
 
         options.min_angle = 0
@@ -114,7 +117,11 @@ class GemExperiment(BaseExperiment):
         Returns:
             Parameterized circuits.
         """
-        bond_idxs = [self.physical_qubits.index(q.index) for q in self._plaquettes.qubits() if q.role == "Bond"]
+        bond_idxs = [
+            self.physical_qubits.index(q.index)
+            for q in self._plaquettes.qubits()
+            if q.role == "Bond"
+        ]
 
         # Create virtual circuit
         # Virtual qubit index is based off of list index of self.physical_qubits
@@ -126,9 +133,7 @@ class GemExperiment(BaseExperiment):
         for i in sched_idx:
             sched_iter = self._plaquettes.build_gate_schedule(i)
             circ = QuantumCircuit(self.num_qubits, self.num_qubits)
-            circ.metadata = {
-                "schedule_index": i
-            }
+            circ.metadata = {"schedule_index": i}
             circ.h(range(self.num_qubits))
             for gate_group in sched_iter:
                 circ.barrier()
@@ -139,7 +144,7 @@ class GemExperiment(BaseExperiment):
                         angle = np.pi / 2
                     circ.rzz(
                         angle,
-                        self.physical_qubits.index(gate.index0),                        
+                        self.physical_qubits.index(gate.index0),
                         self.physical_qubits.index(gate.index1),
                     )
             circ.barrier()
@@ -151,14 +156,20 @@ class GemExperiment(BaseExperiment):
 
     def circuits(self) -> list[QuantumCircuit]:
         circs_bound = []
-        for tmp_circ, param in product(self.parameterized_circuits(), self.parameters()):
-            assigned = tmp_circ.assign_parameters({self.parameter: param}, inplace=False)
+        for tmp_circ, param in product(
+            self.parameterized_circuits(), self.parameters()
+        ):
+            assigned = tmp_circ.assign_parameters(
+                {self.parameter: param}, inplace=False
+            )
             assigned.metadata["theta"] = np.round(param / np.pi, 5)
             circs_bound.append(assigned)
         return circs_bound
-    
+
     def _metadata(self) -> dict[str, Any]:
         metadata = super()._metadata()
         metadata["connectivity"] = self.plaquettes.connectivity()
-        metadata["plaquette_qubit_map"] = {p.index: p.qubits for p in self.plaquettes.plaquettes()}
+        metadata["plaquette_qubit_map"] = {
+            p.index: p.qubits for p in self.plaquettes.plaquettes()
+        }
         return metadata

@@ -112,125 +112,38 @@ pub(super) fn decode_outcomes_fb(
             }
         })
         .collect::<HashMap<_, _>>();
-    let bond_qubits = lattice.decode_graph
-        .edge_weights()
-        .map(|ew| (ew.bit_index.unwrap(), ew.index))
-        .collect::<std::collections::BTreeMap<_, _>>()
-        .into_values()
-        .collect_vec();
-    let site_qubits = lattice.decode_graph
-        .node_weights()
-        .map(|nw| (nw.bit_index.unwrap(), nw.index))
-        .collect::<std::collections::BTreeMap<_, _>>()
-        .into_values()
-        .collect_vec();
-    let qubit_clbit_map = lattice.qubits()
-        .into_iter()
-        .enumerate()
-        .map(|(ci, qi)| (qi.index, ci))
-        .collect::<HashMap<_, _>>();
-    let syndrome_qubits = lattice.plaquette_qubits_map
-        .iter()
-        .collect::<std::collections::BTreeMap<_, _>>()
-        .into_values()
-        .collect_vec();
-    let correlation_indices = lattice.decode_graph
-        .edge_weights()
-        .map(|ew| {
-            let s0 = site_qubits.iter().position(|qi| *qi == ew.neighbor0);
-            let s1 = site_qubits.iter().position(|qi| *qi == ew.neighbor1);
-            (ew.bit_index.unwrap(), s0.unwrap(), s1.unwrap())
-        })
-        .collect_vec();
     let snake_line = traverse_snake(&lattice.decode_graph);
-    let n_bonds = bond_qubits.len();
-    let n_sites = site_qubits.len();
+    let n_bonds = lattice.bit_specifier.bond_qubits.len();
     let n_syndrome = lattice.plaquette_qubits_map.len();
     let mut decoded_counts = HashMap::<String, usize>::with_capacity(counts.len());
     let mut syndrome_sum = vec![0_usize; n_syndrome];
-    let mut bond_correlation_sum = vec![0_isize; n_bonds];
+    let mut bond_sum = vec![0_isize; n_bonds];
     let mut total_shots = 0_usize;
-    for (key, count_num) in counts.iter() {
+    for (meas_string, count_num) in counts.iter() {
         solver.clear();
-        let bitstring = key.chars().collect_vec();
-        let get_bit = |qi: &QubitIndex| -> bool {
-            let ci = if let Some(index) = qubit_clbit_map.get(qi) {
-                index
-            } else {
-                panic!("Qubit {} doesn't exist in the measured bitstring.", qi);
-            };
-            match bitstring.get(bitstring.len() - 1 - *ci) {
-                Some('0') => false,
-                Some('1') => true,
-                _ => panic!("Measured outcome of qubit {} is not a bit.", qi),
-            }
-        };
-        let site_bits = site_qubits
-            .iter()
-            .map(|qi| get_bit(qi))
-            .collect::<BitVec>();
-        let bond_bits = bond_qubits
-            .iter()
-            .map(|qi| get_bit(qi))
-            .collect::<BitVec>();
-        // Compute bond correlation
-        for idxs in correlation_indices.iter() {
-            if bond_bits[idxs.0] ^ site_bits[idxs.1] ^ site_bits[idxs.2] {
-                bond_correlation_sum[idxs.0] += *count_num as isize;
-            } else {
-                bond_correlation_sum[idxs.0] -= *count_num as isize;
-            }
-        }
-        // Compute frustration of plaquette. i.e. syndromes.
-        let syndrome = syndrome_qubits
-            .iter()
-            .map(|sub_qubits| {
-                // Compute total number of '1' in the plaquette bonds.
-                let sum = bond_qubits
-                    .iter()
-                    .zip(bond_bits.iter())
-                    .fold(0_usize, |sum, (qi, bit)| {
-                        if sub_qubits.contains(qi) & (bit == true) {
-                            sum + 1
-                        } else {
-                            sum
-                        }
-                    });
-                // Compute parity; even or odd. 
-                // Odd parity must be an error and syndrome is set.
-                sum % 2 == 1
-            })
-            .collect::<BitVec>();
-        syndrome
-            .iter()
-            .enumerate()
-            .for_each(|(i, s)| if s == true { syndrome_sum[i] += count_num });
+        let (site_bits, bond_bits, syndromes) = decode_preprocess(
+            lattice, 
+            meas_string, 
+            count_num, 
+            &mut bond_sum, 
+            &mut syndrome_sum,
+        );
         // Decode syndrome string (errors) with minimum weight perfect matching.
         // The subgraph bond index is the index of decoding bonds, 
         // i.e. index of fusion-blossom decoding graph edge.
         // If return is [0, 2] and the decoding bond indices are [2, 4, 6, 7, 8],
         // the actual bond index to flip is [2, 6].
-        solver.solve(&build_syndrome_pattern(&syndrome));
-        let mut bond_flips = bitvec![0; n_bonds];
+        solver.solve(&build_syndrome_pattern(&syndromes));
+        let mut match_string = bitvec![0; n_bonds];
         for ei in solver.subgraph().iter() {
-            let bond_index = decoding_bits[ei];
-            *bond_flips.get_mut(bond_index).unwrap() = true;
+            match_string.set(decoding_bits[ei], true);
         }
-        // Combination of bond outcomes + decoder output.
-        // Value of 0 (1) indicates AFM (FM) bond.
-        let loop_string = !(bond_bits ^ bond_flips);
-        // Compute gauge string and decode site string as new dict key.
-        let mut gauge = bitvec![0; n_sites];
-        for gsb in snake_line.iter() {
-            let gauge_bit = gauge[gsb.1] ^ loop_string[gsb.2];
-            *gauge.get_mut(gsb.0).unwrap() = gauge_bit;
-        }
-        // Decode and convert into little endian.
-        let site_key = (site_bits ^ gauge)
-            .iter()
-            .rev()
-            .map(|bit| if *bit { '1' } else { '0' })
-            .collect::<String>();
+        let site_key = decode_postprocess(
+            match_string, 
+            bond_bits, 
+            site_bits, 
+            &snake_line
+        );
         *decoded_counts.entry_ref(&site_key).or_insert(0) += count_num;
         total_shots += count_num;
     }
@@ -238,7 +151,7 @@ pub(super) fn decode_outcomes_fb(
         .into_iter()
         .map(|v| 1.0 - 2.0 * v as f64 / total_shots as f64)
         .collect_vec();
-    let zxz_ops = bond_correlation_sum
+    let zxz_ops = bond_sum
         .into_iter()
         .map(|v| v as f64 / total_shots as f64)
         .collect_vec();
@@ -281,21 +194,175 @@ pub(crate) fn check_matrix_csc(
 }
 
 
-// pub(super) fn decode_outcomes_pm(
-//     py: Python,
-//     solver: PyObject,
-//     lattice: &PyHeavyHexLattice,
-//     counts: &HashMap<String, usize>,
-// ) -> (HashMap<String, usize>, Vec<f64>, Vec<f64>, (f64, f64), (f64, f64)) {
+/// Decode raw circuit outcome with plaquette lattice information
+/// to compute quantities associated with prepared state magnetization 
+/// and other set of quantities associated with device error.
+/// This function is implemented upon the pymatching decoder in the batch mode.
+/// 
+/// # Arguments
+/// * `solver`: Call to pymatching decoder as a Python function.
+/// * `lattice`: Plaquette lattice to provide lattice topology.
+/// * `counts`: Count dictionary keyed on measured bitstring in little endian format.
+/// 
+/// # Returns
+/// A tuple of decoded count dictionary, plaquette and ZXZ bond observables,
+/// and f and g values associated with decoded magnetization.
+pub(super) fn decode_outcomes_pm(
+    py: Python,
+    solver: PyObject,
+    lattice: &PyHeavyHexLattice,
+    counts: &HashMap<String, usize>,
+) -> (HashMap<String, usize>, Vec<f64>, Vec<f64>, (f64, f64), (f64, f64)) {
+    let decoding_bits = lattice.decode_graph
+        .edge_weights()
+        .filter_map(|ew| {
+            if let Some(index) = ew.variable_index {
+                Some((index, ew.bit_index.unwrap()))
+            } else {
+                None
+            }
+        })
+        .collect::<HashMap<_, _>>();
+    let snake_line = traverse_snake(&lattice.decode_graph);
+    let n_bonds = lattice.bit_specifier.bond_qubits.len();
+    let n_syndrome = lattice.plaquette_qubits_map.len();
+    let n_variable = decoding_bits.len();
+    let mut decoded_counts = HashMap::<String, usize>::with_capacity(counts.len());
+    let mut syndrome_sum = vec![0_usize; n_syndrome];
+    let mut bond_sum = vec![0_isize; n_bonds];
+    let mut total_shots = 0_usize;
+    let mut stack = Vec::<((BitVec, BitVec, BitVec), usize)>::with_capacity(counts.len());
+    for (meas_string, count_num) in counts.iter() {
+        let data = decode_preprocess(
+            lattice, 
+            meas_string, 
+            count_num, 
+            &mut bond_sum, 
+            &mut syndrome_sum,
+        );
+        stack.push((data, *count_num));
+        total_shots += count_num;
+    }
+    // TODO better error handling
+    let shots = stack
+        .iter()
+        .flat_map(|s| s.0.2.iter().by_vals().collect::<Vec<bool>>())
+        .collect_vec();
+    let decoded_shots = solver
+        .call1(py, (shots, (stack.len(), n_syndrome)))
+        .unwrap()
+        .extract::<Vec<bool>>(py)
+        .unwrap();
+    for (i, data) in stack.into_iter().enumerate() {
+        let mut match_string = bitvec![0; n_bonds];
+        for (vi, bi) in decoding_bits.iter() {
+            let idx = i * n_variable + vi;
+            match_string.set(*bi, decoded_shots[idx]);
+        }
+        let site_key = decode_postprocess(
+            match_string, 
+            data.0.1, 
+            data.0.0, 
+            &snake_line
+        );
+        *decoded_counts.entry_ref(&site_key).or_insert(0) += data.1;
+    }
+    let w_ops = syndrome_sum
+        .into_iter()
+        .map(|v| 1.0 - 2.0 * v as f64 / total_shots as f64)
+        .collect_vec();
+    let zxz_ops = bond_sum
+        .into_iter()
+        .map(|v| v as f64 / total_shots as f64)
+        .collect_vec();
+    let (f, g) = decode_magnetization(&decoded_counts);
 
-//     ()
-// }
+    (decoded_counts, w_ops, zxz_ops, f, g)    
+}
+
+
+fn decode_preprocess(
+    lattice: &PyHeavyHexLattice,
+    meas_string: &String,
+    count_num: &usize,
+    bond_sum: &mut Vec<isize>,
+    syndrome_sum: &mut Vec<usize>,
+) -> (BitVec, BitVec, BitVec) {
+    let meas_string = meas_string.chars().collect_vec();
+    let site_bits = lattice.bit_specifier.to_site_string(&meas_string);
+    let bond_bits = lattice.bit_specifier.to_bond_string(&meas_string);
+    let syndrome = lattice
+        .plaquette_qubits_map
+        .values()
+        .map(|sub_qubits| {
+            // Compute total number of '1' in the plaquette bonds.
+            let sum = sub_qubits
+                .iter()
+                .fold(0_usize, |sum, qi| {
+                    if let Some(bi) = lattice.bit_specifier.bond_qubits.get(qi) {
+                        if bond_bits[*bi] == true {
+                            sum + 1
+                        } else {
+                            sum
+                        }
+                    } else {
+                        sum
+                    }
+                });
+            sum % 2 == 1
+        })
+        .collect::<BitVec>();
+    // Add up frustrated syndromes
+    syndrome
+        .iter()
+        .enumerate()
+        .for_each(|(i, s)| if s == true { syndrome_sum[i] += *count_num });
+    // Add up correlated bits
+    lattice
+        .bit_specifier
+        .correlated_bits
+        .iter()
+        .for_each(|idxs| {
+            if bond_bits[idxs.0] ^ site_bits[idxs.1] ^ site_bits[idxs.2] {
+                bond_sum[idxs.0] += *count_num as isize;
+            } else {
+                bond_sum[idxs.0] -= *count_num as isize;
+            }
+        });
+    (site_bits, bond_bits, syndrome)
+}
+
+
+fn decode_postprocess(
+    match_string: BitVec,
+    bond_bits: BitVec,
+    site_bits: BitVec,
+    snake_line: &Vec<(usize, usize, usize)>,
+) -> String {
+    // Combination of bond outcomes + decoder output.
+    // Value of 0 (1) indicates AFM (FM) bond.
+    let loop_string = !(bond_bits ^ match_string);
+    // Compute gauge string and decode site string as new dict key.
+    let n_sites = site_bits.len();
+    let mut gauge = bitvec![0; n_sites];
+    for gsb in snake_line.iter() {
+        let gauge_bit = gauge[gsb.1] ^ loop_string[gsb.2];
+        gauge.set(gsb.0, gauge_bit);
+    }
+    // Decode and convert into little endian.
+    (site_bits ^ gauge)
+        .iter()
+        .rev()
+        .map(|bit| if *bit { '1' } else { '0' })
+        .collect::<String>()
+}
 
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::mock::{FALCON_CMAP, EAGLE_CMAP};
+    use approx::assert_relative_eq;
 
     #[test]
     fn test_check_matrix() {
@@ -337,101 +404,46 @@ mod tests {
 
     #[test]
     fn test_decode_outcome() {
-        // Validation
-        //
-        // Eagle coupling map
-        // [q01]--<q04>--[q07]--<q10>--[q12]--<q15>--[q18]--<q21>--[q23]
-        //   |                           |                           |
-        // <q02>                       <q13>                       <q24>
-        //   |                           |                           |
-        // [q03]--<q05>--[q08]--<q11>--[q14]--<q16>--[q19]--<q22>--[q25]
-        //
-        // test string
-        // 100111000111010001010
-        //
-        // mapping
-        //       0      1      2      3      4      5      6      7      8      9      10
-        // site: 0[q01] 0[q03] 0[q07] 0[q08] 1[q12] 1[q14] 0[q18] 1[q19] 0[q23] 1[q25]
-        // bond: 1<q02> 1<q04> 0<q05> 1<q10> 0<q11> 1<q13> 0<q15> 0<q16> 1<q21> 1<q22> 0<q24> 
-        //
-        // bond string
-        // 11010100110
-        //
-        // site string
-        // 0000110101
-        //
-        // syndrome 0 (plaquette 0)
-        // 110101 (0: even parity)
-        // 
-        // syndrome 1 (plaquette 1)
-        // 100110 (1: odd parity)
-        //
-        // syndrome 
-        // 01
-        //
-        // mwpm solution for decoding <q04> <q13> <q15> (select bond that flips only syndrome 1)
-        // q15
-        // 
-        // loop (bond with q15 flipped, and invert bits)
-        // 00101001001
-        //
-        // compute gauge
-        // snake line
-        //          : gauge[ 8] = 0
-        // (6, 8, 8): gauge[ 6] = gauge[ 8] ^ loop[ 8] = 0 ^ 0 = 0
-        // (4, 6, 6): gauge[ 4] = gauge[ 6] ^ loop[ 6] = 0 ^ 0 = 0
-        // (2, 4, 3): gauge[ 2] = gauge[ 4] ^ loop[ 3] = 0 ^ 0 = 0
-        // (0, 2, 1): gauge[ 0] = gauge[ 2] ^ loop[ 1] = 0 ^ 0 = 0
-        // (1, 0, 0): gauge[ 1] = gauge[ 0] ^ loop[ 0] = 0 ^ 0 = 0
-        // (3, 1, 2): gauge[ 3] = gauge[ 1] ^ loop[ 2] = 0 ^ 1 = 1
-        // (5, 3, 4): gauge[ 5] = gauge[ 3] ^ loop[ 4] = 1 ^ 1 = 0
-        // (7, 5, 7): gauge[ 7] = gauge[ 5] ^ loop[ 7] = 0 ^ 1 = 1
-        // (9, 7, 9): gauge[ 9] = gauge[ 7] ^ loop[ 9] = 1 ^ 0 = 1
-        // -------------------------------------------------------
-        // gauge
-        // 0001000101
-        //
-        // site ^ gauge
-        // 0001110000
-        //
-        // to little endian
-        // 0000111000
-        //
-        // bond correlation
-        // bond[ 0] ^ site[ 0] ^ site[ 1] = 1 ^ 0 ^ 0 = 1
-        // bond[ 1] ^ site[ 0] ^ site[ 2] = 1 ^ 0 ^ 0 = 1
-        // bond[ 2] ^ site[ 1] ^ site[ 3] = 0 ^ 0 ^ 0 = 0
-        // bond[ 3] ^ site[ 2] ^ site[ 4] = 1 ^ 0 ^ 1 = 0
-        // bond[ 4] ^ site[ 3] ^ site[ 5] = 0 ^ 0 ^ 1 = 1
-        // bond[ 5] ^ site[ 4] ^ site[ 5] = 1 ^ 1 ^ 1 = 1
-        // bond[ 6] ^ site[ 4] ^ site[ 6] = 0 ^ 1 ^ 0 = 1
-        // bond[ 7] ^ site[ 5] ^ site[ 7] = 0 ^ 1 ^ 1 = 0
-        // bond[ 8] ^ site[ 6] ^ site[ 8] = 1 ^ 0 ^ 0 = 1
-        // bond[ 9] ^ site[ 7] ^ site[ 9] = 1 ^ 1 ^ 1 = 1
-        // bond[10] ^ site[ 8] ^ site[ 9] = 0 ^ 0 ^ 1 = 1
-        //
+        // See tests.utils.process_counts_debug script for reference answer.
         let coupling_map = FALCON_CMAP.lock().unwrap().to_owned();
         let lattice = PyHeavyHexLattice::new(coupling_map);
-        let outcomes = HashMap::<String, usize>::from([(format!("100111000111010001010"), 123)]);
+        let outcomes = HashMap::<String, usize>::from([
+            (format!("111111100001100101001"), 100),
+            (format!("000101001111111110100"), 100),
+            (format!("101100000110111101000"), 100),
+            (format!("010001110100011101011"), 100),
+            (format!("011111010001111110110"), 100),
+        ]);
         let tmp = decode_outcomes_fb(&lattice, &outcomes);
         let count = tmp.0;
         let w_ops = tmp.1;
         let zxz_ops = tmp.2;
-        let f = tmp.3.0;
-        let g = tmp.4.0;
+        let f = tmp.3;
+        let g = tmp.4;
         assert_eq!(
             count,
-            HashMap::<String, usize>::from([(format!("0000111000"), 123_usize)])
+            HashMap::<String, usize>::from([
+                (format!("1111111000"), 100),
+                (format!("1001111111"), 100),
+                (format!("0111101110"), 100),
+                (format!("0000001110"), 100),
+                (format!("0110001010"), 100),
+            ])
         );
-        assert_eq!(
-            w_ops,
-            vec![1.0, -1.0]
-        );
-        assert_eq!(
-            zxz_ops,
-            vec![1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0]
-        );
-        assert_eq!(f, 0.0);
-        assert_eq!(g, 0.0);
+        let ref_w_ops = vec![0.6, 0.2];
+        for (v, ref_v) in w_ops.iter().zip(ref_w_ops.iter()){
+            assert_relative_eq!(v, ref_v);
+        }
+        let ref_zxz_ops = vec![-0.2, 0.6, 0.6, -0.2, 0.2, 0.6, -0.2, 0.2, 0.2, -0.2, -0.2];
+        for (v, ref_v) in zxz_ops.iter().zip(ref_zxz_ops.iter()){
+            assert_relative_eq!(v, ref_v);
+        }
+        // Std part uses higher order moment.
+        // Computation of power with larger exponent might cause non-negiligible numerical error.
+        // This test has higher tolerance to accept the numerical error.
+        assert_relative_eq!(f.0, 1.5040000000000004, max_relative=0.001);
+        assert_relative_eq!(f.1, 0.04361780095970634, max_relative=0.3);
+        assert_relative_eq!(g.0, 0.1062399999999999, max_relative=0.001);
+        assert_relative_eq!(g.1, 0.019372556978285625, max_relative=0.3);
     }
 }

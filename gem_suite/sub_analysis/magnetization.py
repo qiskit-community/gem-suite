@@ -2,9 +2,9 @@
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
 # a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
@@ -26,33 +26,33 @@ def analyze_magnetization(
     data: pd.DataFrame,
 ) -> tuple[list[FigureData], list[AnalysisResultData]]:
     """Analyze magnetization of the prepared state.
-    
+
     Args:
         data: Dataframe contaning f and g entries.
-    
+
     Returns:
         FigureData and AnalysisResultData for Qiskit Experiments.
     """
     figures = []
     analysis_results = []
-    
+
     # Analyze two point classical correlation
     f_data = data[data.name == "f"]
-    ax, (xvals, yvals) = plot_schedules(f_data)
+    axis, (xvals, yvals) = plot_schedules(f_data)
     nominal_yvals = unp.nominal_values(yvals)
     argmax = np.argmax(nominal_yvals)
     fmax = nominal_yvals[argmax]
-    ax.set_ylabel(r"Average two-point correlation $f$")
-    ax.text(
+    axis.set_ylabel(r"Average two-point correlation $f$")
+    axis.text(
         xvals[argmax],
         nominal_yvals[argmax],
         f"max_tpc = {fmax:.4f}",
         ha="right",
-        va="bottom",        
+        va="bottom",
     )
     figures.append(
         FigureData(
-            figure=ax.get_figure(),
+            figure=axis.get_figure(),
             name="two_point_correlation",
         )
     )
@@ -62,15 +62,15 @@ def analyze_magnetization(
             value=yvals[argmax],
         )
     )
-    
+
     # Analyze variance
     g_data = data[data.name == "g"]
-    ax, (xvals, yvals) = plot_schedules(g_data)
+    axis, (xvals, yvals) = plot_schedules(g_data)
     nominal_yvals = unp.nominal_values(yvals)
     argmax = np.argmax(nominal_yvals)
     critical = xvals[argmax]
-    ax.set_ylabel(r"Normalized variance $g$")
-    ax.text(
+    axis.set_ylabel(r"Normalized variance $g$")
+    axis.text(
         critical,
         nominal_yvals[argmax],
         f"critical_angle = {critical:.4f}",
@@ -79,7 +79,7 @@ def analyze_magnetization(
     )
     figures.append(
         FigureData(
-            figure=ax.get_figure(),
+            figure=axis.get_figure(),
             name="normalized_variance",
         )
     )
@@ -89,5 +89,5 @@ def analyze_magnetization(
             value=critical,
         )
     )
-    
+
     return figures, analysis_results

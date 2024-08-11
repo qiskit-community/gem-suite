@@ -20,6 +20,9 @@ lazy_static = "1.4"
 itertools = "0.13.0"
 fusion-blossom = "0.2.10"
 
+[dev-dependencies]
+approx = "0.5.1"
+
 [dependencies.pyo3]
 version = "0.22.2"
 features = ["extension-module", "hashbrown"]

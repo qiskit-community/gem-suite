@@ -16,9 +16,9 @@ mod graph_builder;
 mod simple_cycle;
 mod decoding;
 
-use bitvec::vec::BitVec;
+use bitvec::prelude::*;
 use graph_builder::*;
-use decoding::{decode_outcomes_fb, check_matrix_csc};
+use decoding::{check_matrix_csc, decode_outcomes_fb, decode_outcomes_pm};
 use itertools::Itertools;
 use simple_cycle::heavyhex_cycle;
 
@@ -415,12 +415,44 @@ impl PyHeavyHexLattice{
     /// # Returns
     /// A tuple of decoded count dictionary, plaquette and ZXZ bond observables,
     /// and f and g values associated with decoded magnetization.
-    pub fn decode_outcomes(
+    pub fn decode_outcomes_fb(
         &self, 
         counts: HashMap<String, usize>,
         return_counts: bool,
     ) -> (Option<HashMap<String, usize>>, Vec<f64>, Vec<f64>, (f64, f64), (f64, f64)) {
         let out = decode_outcomes_fb(&self, &counts);
+        if return_counts {
+            (Some(out.0), out.1, out.2, out.3, out.4)
+        } else {
+            (None, out.1, out.2, out.3, out.4)
+        }
+    }
+
+    /// Decode raw circuit outcome with plaquette lattice information
+    /// to compute quantities associated with prepared state magnetization 
+    /// and other set of quantities associated with device error.
+    /// 
+    /// # Arguments
+    /// * `solver`: Call to the pymatching Matching decoder in the batch mode.
+    /// * `lattice`: Plaquette lattice to provide lattice topology.
+    /// * `counts`: Count dictionary keyed on measured bitstring in little endian format.
+    /// * `return_counts`: Set true to return decoded count dictionary. 
+    ///   The dict data is not used in the following analysis in Python domain 
+    ///   while data size is large and thus increases the overhead in the FFI boundary.
+    ///   When this function is called from Rust, this overhead doesn't matter since
+    ///   data is just moved.
+    /// 
+    /// # Returns
+    /// A tuple of decoded count dictionary, plaquette and ZXZ bond observables,
+    /// and f and g values associated with decoded magnetization.
+    pub fn decode_outcomes_pm(
+        &self, 
+        py: Python,
+        solver: PyObject,
+        counts: HashMap<String, usize>,
+        return_counts: bool,
+    ) -> (Option<HashMap<String, usize>>, Vec<f64>, Vec<f64>, (f64, f64), (f64, f64)) {
+        let out = decode_outcomes_pm(py, solver, &self, &counts);
         if return_counts {
             (Some(out.0), out.1, out.2, out.3, out.4)
         } else {
@@ -484,10 +516,12 @@ impl PyHeavyHexLattice {
 /// Helper object to manage mapping between qubit index and bit index.
 #[derive(Debug, Clone)]
 pub struct BitSpecifier {
-    pub bond_qubits: Vec<QubitIndex>,
-    pub site_qubits: Vec<QubitIndex>,
+    pub bond_qubits: HashMap<QubitIndex, BitIndex>,
+    pub site_qubits: HashMap<QubitIndex, BitIndex>,
+    pub ordered_bond_qubits: Vec<QubitIndex>,
+    pub ordered_site_qubits: Vec<QubitIndex>,
     pub qubit_clbit_map: HashMap<QubitIndex, BitIndex>,
-    pub bond_correlation: HashMap<BitIndex, (BitIndex, BitIndex)>,
+    pub correlated_bits: Vec<(BitIndex, BitIndex, BitIndex)>,
 }
 
 impl BitSpecifier {
@@ -498,67 +532,76 @@ impl BitSpecifier {
     ) -> Self {
         let bond_qubits = decode_graph
             .edge_weights()
-            .map(|ew| (ew.bit_index.unwrap(), ew.index))
-            .collect::<std::collections::BTreeMap<_, _>>()
-            .into_values()
-            .collect_vec();
+            .map(|ew| (ew.index, ew.bit_index.unwrap()))
+            .collect::<HashMap<_, _>>();
         let site_qubits = decode_graph
             .node_weights()
-            .map(|nw| (nw.bit_index.unwrap(), nw.index))
-            .collect::<std::collections::BTreeMap<_, _>>()
-            .into_values()
-            .collect_vec();
-        let bond_correlation = decode_graph
-            .edge_weights()
-            .map(|ew| {
-                let s0 = site_qubits.iter().position(|qi| *qi == ew.neighbor0);
-                let s1 = site_qubits.iter().position(|qi| *qi == ew.neighbor1);
-                (ew.bit_index.unwrap(), (s0.unwrap(), s1.unwrap()))
-            })
+            .map(|nw| (nw.index, nw.bit_index.unwrap()))
             .collect::<HashMap<_, _>>();
         let qubit_clbit_map = qubits
             .iter()
             .enumerate()
             .map(|(c, q)| (*q, c))
             .collect::<HashMap<_, _>>();
+        let correlated_bits = decode_graph
+            .edge_weights()
+            .map(|ew| {
+                (ew.bit_index.unwrap(), site_qubits[&ew.neighbor0], site_qubits[&ew.neighbor1])
+            })
+            .collect_vec();
+        let ordered_bond_qubits = bond_qubits
+            .iter()
+            .map(|(qi, bi)| (bi, *qi))
+            .collect::<std::collections::BTreeMap<_, _>>()
+            .into_values()
+            .collect_vec();
+        let ordered_site_qubits = site_qubits
+            .iter()
+            .map(|(qi, bi)| (bi, *qi))
+            .collect::<std::collections::BTreeMap<_, _>>()
+            .into_values()
+            .collect_vec();
         BitSpecifier {
             bond_qubits,
             site_qubits,
+            ordered_bond_qubits,
+            ordered_site_qubits,
             qubit_clbit_map,
-            bond_correlation,
+            correlated_bits,
         }
     }
 
     pub fn to_bond_string(&self, meas_bits: &Vec<char>) -> BitVec{
-        self.bond_qubits
+        let n_bits = meas_bits.len();
+        self.ordered_bond_qubits
             .iter()
             .map(|qi| {
                 let ci = self.qubit_clbit_map[qi];
-                match meas_bits.get(meas_bits.len() - 1 - ci) {
-                    Some('0') => false,
+                match meas_bits.get(n_bits - 1 - ci) {
                     Some('1') => true,
-                    _ => panic!("Measured outcome of qubit {} is not a bit.", qi),
+                    Some('0') => false,
+                    _ => panic!("Outcome of qubit {} is not a bit.", qi),
                 }
             })
             .collect::<BitVec>()
     }
 
     pub fn to_site_string(&self, meas_bits: &Vec<char>) -> BitVec{
-        self.site_qubits
+        let n_bits = meas_bits.len();
+        self.ordered_site_qubits
             .iter()
             .map(|qi| {
                 let ci = self.qubit_clbit_map[qi];
-                match meas_bits.get(meas_bits.len() - 1 - ci) {
-                    Some('0') => false,
+                match meas_bits.get(n_bits - 1 - ci) {
                     Some('1') => true,
-                    _ => panic!("Measured outcome of qubit {} is not a bit.", qi),
+                    Some('0') => false,
+                    _ => panic!("Outcome of qubit {} is not a bit.", qi),
                 }
             })
             .collect::<BitVec>()
     }
 
 }
-
 
 
 #[cfg(test)]
