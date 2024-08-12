@@ -29,7 +29,6 @@ class TestCircuit(unittest.TestCase):
         """Test comparing virtual circuits."""
         exp = GemExperiment(range(2), backend=FakeGeneva())
 
-        # Logically same setting with the Summit notebook
         exp.set_experiment_options(schedule_idx=10)
         test_circ = exp.parameterized_circuits()[0]
 
@@ -39,13 +38,13 @@ class TestCircuit(unittest.TestCase):
         ref_circ.h(range(21))
         ref_circ.barrier()
         ref_circ.rzz(theta, [4, 7, 13, 16], [6, 9, 15, 18])
-        ref_circ.rzz(pi / 2, [1, 3, 8, 12, 17], [2, 5, 11, 14, 20])
+        ref_circ.rzz(pi / 2, [3, 8, 12, 17], [5, 11, 14, 20])
         ref_circ.barrier()
         ref_circ.rzz(theta, [0, 6, 9, 15], [3, 8, 12, 17])
-        ref_circ.rzz(pi / 2, [2, 5, 10, 14, 19], [4, 7, 11, 16, 20])
+        ref_circ.rzz(pi / 2, [1, 10, 19], [2, 11, 20])
         ref_circ.barrier()
         ref_circ.rzz(theta, [0, 9, 18], [1, 10, 19])
-        ref_circ.rzz(pi / 2, [11], [13])
+        ref_circ.rzz(pi / 2, [2, 5, 11, 14], [4, 7, 13, 16])
         ref_circ.barrier()
         ref_circ.h([1, 3, 4, 7, 8, 10, 12, 13, 16, 17, 19])
         ref_circ.barrier()
