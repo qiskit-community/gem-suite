@@ -21,6 +21,29 @@ cd nishimori-cats
 pip install .
 ```
 
+## Example
+
+In the GEM protocol, an atomic unit of the experiment is a plaquette, which is a collection of multiple qubits.
+In case of the conventional IBM Quantum processors with the heavy hexagonal lattice, 
+a single plaquette contains 12 qubits and a single IBM Eagle processor has 18 plaquettes.
+This is an efficient compact representation of a quantum processor with a few hundred qubits.
+
+![image](./images/plaquette_eagle.png)
+
+We can partly reproduce experiments in the publication with few lines of code thanks to the Qiskit Experiments framework.
+
+```python
+from gem_suite.experiments import GemExperiment
+from qiskit_ibm_runtime import QiskitRuntimeService
+
+backend = QiskitRuntimeService().backend("ibm_osaka")
+
+gem_exp = GemExperiment(plaquettes=range(18), backend=backend)
+exp_data = gem_exp.run().block_for_results()
+```
+
+Please see [our example notebook](./examples/01_gem_benchmark.ipynb) for the complete workflow.
+
 ## License
 
 [Apache License 2.0](LICENSE.txt)
