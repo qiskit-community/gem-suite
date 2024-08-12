@@ -1,4 +1,4 @@
-// This code is part of Qiskit.
+// GEM experiment suite
 //
 // (C) Copyright IBM 2024.
 //
