@@ -113,7 +113,7 @@ pub(super) fn decode_outcomes_fb(
         })
         .collect::<HashMap<_, _>>();
     let snake_line = traverse_snake(&lattice.decode_graph);
-    let n_bonds = lattice.bit_specifier.bond_qubits.len();
+    let n_bonds = lattice.bit_specifier.n_bonds;
     let n_syndrome = lattice.plaquette_qubits_map.len();
     let mut decoded_counts = HashMap::<String, usize>::with_capacity(counts.len());
     let mut syndrome_sum = vec![0_usize; n_syndrome];
@@ -224,7 +224,7 @@ pub(super) fn decode_outcomes_pm(
         })
         .collect::<HashMap<_, _>>();
     let snake_line = traverse_snake(&lattice.decode_graph);
-    let n_bonds = lattice.bit_specifier.bond_qubits.len();
+    let n_bonds = lattice.bit_specifier.n_bonds;
     let n_syndrome = lattice.plaquette_qubits_map.len();
     let n_variable = decoding_bits.len();
     let mut decoded_counts = HashMap::<String, usize>::with_capacity(counts.len());
@@ -291,28 +291,8 @@ fn decode_preprocess(
     let meas_string = meas_string.chars().collect_vec();
     let site_bits = lattice.bit_specifier.to_site_string(&meas_string);
     let bond_bits = lattice.bit_specifier.to_bond_string(&meas_string);
-    let syndrome = lattice
-        .plaquette_qubits_map
-        .values()
-        .map(|sub_qubits| {
-            // Compute total number of '1' in the plaquette bonds.
-            let sum = sub_qubits
-                .iter()
-                .fold(0_usize, |sum, qi| {
-                    if let Some(bi) = lattice.bit_specifier.bond_qubits.get(qi) {
-                        if bond_bits[*bi] == true {
-                            sum + 1
-                        } else {
-                            sum
-                        }
-                    } else {
-                        sum
-                    }
-                });
-            sum % 2 == 1
-        })
-        .collect::<BitVec>();
     // Add up frustrated syndromes
+    let syndrome = lattice.bit_specifier.calculate_syndrome(&bond_bits);
     syndrome
         .iter()
         .enumerate()

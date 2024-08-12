@@ -499,7 +499,7 @@ impl PyHeavyHexLattice {
             &plaquette_graph,
             &plaquette_qubits_map,
         );
-        let bit_specifier = BitSpecifier::new(&decode_graph, &plq_qubits);
+        let bit_specifier = BitSpecifier::new(&decode_graph, &plq_qubits, &plaquette_qubits_map);
 
         PyHeavyHexLattice {
             plaquette_qubits_map, 
@@ -514,14 +514,16 @@ impl PyHeavyHexLattice {
 
 
 /// Helper object to manage mapping between qubit index and bit index.
+/// Because bit mapping is computed repeateadly to process each count key,
+/// this object provides significant speedup by precaching the mapping.
 #[derive(Debug, Clone)]
 pub struct BitSpecifier {
-    pub bond_qubits: HashMap<QubitIndex, BitIndex>,
-    pub site_qubits: HashMap<QubitIndex, BitIndex>,
-    pub ordered_bond_qubits: Vec<QubitIndex>,
-    pub ordered_site_qubits: Vec<QubitIndex>,
-    pub qubit_clbit_map: HashMap<QubitIndex, BitIndex>,
+    pub bond_cidxs: Vec<QubitIndex>,
+    pub site_cidxs: Vec<QubitIndex>,
     pub correlated_bits: Vec<(BitIndex, BitIndex, BitIndex)>,
+    pub syndrome_bonds: Vec<Vec<BitIndex>>,
+    pub n_bonds: usize,
+    pub n_sites: usize,
 }
 
 impl BitSpecifier {
@@ -529,6 +531,7 @@ impl BitSpecifier {
     pub fn new(
         decode_graph: &StableUnGraph<DecodeNode, DecodeEdge>,
         qubits: &Vec<usize>,
+        plaquette_qubits_map: &std::collections::BTreeMap<PlaquetteIndex, Vec<QubitIndex>>,
     ) -> Self {
         let bond_qubits = decode_graph
             .edge_weights()
@@ -543,60 +546,85 @@ impl BitSpecifier {
             .enumerate()
             .map(|(c, q)| (*q, c))
             .collect::<HashMap<_, _>>();
+        let bond_cidxs = bond_qubits
+            .iter()
+            .map(|(qi, bi)| (bi, *qi))
+            .collect::<std::collections::BTreeMap<_, _>>()
+            .into_values()
+            .map(|qi| qubit_clbit_map.len() - 1 - qubit_clbit_map[&qi])
+            .collect_vec();
+        let site_cidxs = site_qubits
+            .iter()
+            .map(|(qi, bi)| (bi, *qi))
+            .collect::<std::collections::BTreeMap<_, _>>()
+            .into_values()
+            .map(|qi| qubit_clbit_map.len() - 1 - qubit_clbit_map[&qi])
+            .collect_vec();
         let correlated_bits = decode_graph
             .edge_weights()
             .map(|ew| {
                 (ew.bit_index.unwrap(), site_qubits[&ew.neighbor0], site_qubits[&ew.neighbor1])
             })
             .collect_vec();
-        let ordered_bond_qubits = bond_qubits
-            .iter()
-            .map(|(qi, bi)| (bi, *qi))
-            .collect::<std::collections::BTreeMap<_, _>>()
-            .into_values()
-            .collect_vec();
-        let ordered_site_qubits = site_qubits
-            .iter()
-            .map(|(qi, bi)| (bi, *qi))
-            .collect::<std::collections::BTreeMap<_, _>>()
-            .into_values()
+        let syndrome_bonds = plaquette_qubits_map
+            .values()
+            .map(|sub_qubits| {
+                sub_qubits
+                    .iter()
+                    .filter_map(|qi| {
+                        if let Some(bi) = bond_qubits.get(qi) {
+                            Some(*bi)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect_vec()
+            })
             .collect_vec();
         BitSpecifier {
-            bond_qubits,
-            site_qubits,
-            ordered_bond_qubits,
-            ordered_site_qubits,
-            qubit_clbit_map,
+            bond_cidxs,
+            site_cidxs,
             correlated_bits,
+            syndrome_bonds,
+            n_bonds: bond_qubits.len(),
+            n_sites: site_qubits.len(),
         }
     }
 
-    pub fn to_bond_string(&self, meas_bits: &Vec<char>) -> BitVec{
-        let n_bits = meas_bits.len();
-        self.ordered_bond_qubits
+    pub fn to_bond_string(&self, meas_bits: &Vec<char>) -> BitVec {
+        self.bond_cidxs
             .iter()
-            .map(|qi| {
-                let ci = self.qubit_clbit_map[qi];
-                match meas_bits.get(n_bits - 1 - ci) {
-                    Some('1') => true,
-                    Some('0') => false,
-                    _ => panic!("Outcome of qubit {} is not a bit.", qi),
-                }
+            .map(|ci| match meas_bits[*ci] {
+                '1' => true,
+                '0' => false,
+                _ => panic!("Measurement outcome is not bits."),
             })
             .collect::<BitVec>()
     }
 
-    pub fn to_site_string(&self, meas_bits: &Vec<char>) -> BitVec{
-        let n_bits = meas_bits.len();
-        self.ordered_site_qubits
+    pub fn to_site_string(&self, meas_bits: &Vec<char>) -> BitVec {
+        self.site_cidxs
             .iter()
-            .map(|qi| {
-                let ci = self.qubit_clbit_map[qi];
-                match meas_bits.get(n_bits - 1 - ci) {
-                    Some('1') => true,
-                    Some('0') => false,
-                    _ => panic!("Outcome of qubit {} is not a bit.", qi),
-                }
+            .map(|ci| match meas_bits[*ci] {
+                '1' => true,
+                '0' => false,
+                _ => panic!("Measurement outcome is not bits."),
+            })
+            .collect::<BitVec>()
+    }
+
+    pub fn calculate_syndrome(&self, bond_bits: &BitVec) -> BitVec {
+        self.syndrome_bonds
+            .iter()
+            .map(|bis| {
+                let sum = bis.iter().fold(0_usize, |sum, bi| {
+                    if bond_bits[*bi] == true {
+                        sum + 1
+                    } else {
+                        sum
+                    }
+                });
+                sum % 2 == 1
             })
             .collect::<BitVec>()
     }
