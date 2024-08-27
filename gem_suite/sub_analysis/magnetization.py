@@ -23,6 +23,7 @@ from gem_suite.plot_utils import plot_schedules
 
 def analyze_magnetization(
     data: pd.DataFrame,
+    num_sites: int,
 ) -> tuple[list[FigureData], list[AnalysisResultData]]:
     """Analyze magnetization of the prepared state.
 
@@ -37,6 +38,7 @@ def analyze_magnetization(
 
     # Analyze two point classical correlation
     f_data = data[data.name == "f"]
+    f_data.loc[:, "value"] /= num_sites
     axis, (xvals, yvals) = plot_schedules(f_data)
     nominal_yvals = unp.nominal_values(yvals)
     argmax = np.argmax(nominal_yvals)

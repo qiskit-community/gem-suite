@@ -153,9 +153,13 @@ class GemAnalysis(BaseAnalysis):
                 )
         dataframe = pd.DataFrame.from_records(records)
         del records
-
+        
         # Analyze magnetizations
-        mag_figs, mag_results = analyze_magnetization(dataframe)
+        num_site = 0
+        for qubit in self._plaquettes.qubits():
+            if qubit.role == "Site":
+                num_site += 1
+        mag_figs, mag_results = analyze_magnetization(dataframe, num_site)
         fig_data.extend(mag_figs)
         analysis_results.extend(mag_results)
 
