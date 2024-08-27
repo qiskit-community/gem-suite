@@ -187,7 +187,8 @@ class GemAnalysis(BaseAnalysis):
             if plaquette_qualities:
                 p_map = {p.index: p.qubits for p in self._plaquettes.plaquettes()}
                 noise_map = {
-                    q.extra["plaquette"]: q.value.n for q in plaquette_qualities
+                    q.extra["plaquette"]: q.value.n
+                    for q in plaquette_qualities if q.value is not None
                 }
                 dot = visualize_plaquette_with_noise(p_map, noise_map)
                 fig_data.append(
