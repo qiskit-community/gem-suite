@@ -301,13 +301,14 @@ def analyze_clifford_limit(
         )
     )
     for plaquette in plaquettes:
+        all_obs = []
         sub_qubits = plaquette.qubits
         plq_index = plaquette.index
         filtered_data = clif_data[
             (clif_data.name == "w") & (clif_data.component == plq_index)
         ]
         w_val = ufloat(np.average(filtered_data.value), np.std(filtered_data.value))
-        zxz_vals = []
+        all_obs.append(w_val)
         for bond_bit, bond_qubit in bond_to_qubits.items():
             # Take bond qubits in this plaquette
             if bond_qubit.index not in sub_qubits:
@@ -318,19 +319,15 @@ def analyze_clifford_limit(
             zxz_val = ufloat(
                 np.average(filtered_data.value), np.std(filtered_data.value)
             )
-            zxz_vals.append(zxz_val)
-        zxz_mean_val = np.average(zxz_vals)
-        prod = w_val * zxz_mean_val
-        if prod.n < 0.0:
-            warnings.warn(
-                f"Product of W and ZXZ observables is negative number in plaquette {plq_index}.",
-                RuntimeWarning,
-            )
-            continue
+            all_obs.append(zxz_val)
+        if any(o < 0 for o in all_obs):
+            value = None
+        else:
+            value = np.prod(all_obs) ** (1 / len(all_obs))
         analysis_results.append(
             AnalysisResultData(
                 "plaquette_quality",
-                value=prod**0.5,
+                value=value,
                 device_components=[Qubit(q) for q in sub_qubits],
                 extra={"plaquette": plq_index},
             )
@@ -373,7 +370,10 @@ def fit_util(
         dof = n_data - len(init)
         chisq = np.sum(ret.fun**2)
         red_chisq = chisq / dof
-        aic = n_data * np.log(chisq / n_data) + 2 * len(init)
+        if chisq != 0:
+            aic = n_data * np.log(chisq / n_data) + 2 * len(init)
+        else:
+            aic = None
         # Compute error of the parameters
         hess = np.matmul(ret.jac.T, ret.jac)
         fit_vals = None
