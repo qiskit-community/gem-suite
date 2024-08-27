@@ -8,7 +8,7 @@ Through injecting coherent errors, the GEM experiment provides an estimate for h
 
 All technical details are available on arXiv: https://arxiv.org/abs/2309.02863
 
-Because of the computationally expensive protocol of the measurement outcome decoding, this library is mostly implemented in Rust and interfaced with [Qiskit Experiments](https://github.com/Qiskit-Extensions/qiskit-experiments) via [PyO3](https://docs.rs/pyo3/latest/pyo3/index.html). We support two minimum weight perfect matching decoders; [pymatching](https://github.com/oscarhiggott/PyMatching) and [fusion-blossom](https://github.com/yuewuo/fusion-blossom).
+Because of the computationally expensive subroutine of the measurement outcome decoding, this library is mostly implemented in Rust programming language for performance. The core library is interfaced with [Qiskit Experiments](https://github.com/Qiskit-Extensions/qiskit-experiments) via [PyO3](https://docs.rs/pyo3/latest/pyo3/index.html) to produce experiment circuits with the Qiskit model and analyze the results. We support two minimum weight perfect matching decoders; [pymatching](https://github.com/oscarhiggott/PyMatching) and [fusion-blossom](https://github.com/yuewuo/fusion-blossom).
 
 This library is designed to work with, not limited to, IBM Quantum processors.
 
