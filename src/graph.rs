@@ -51,7 +51,7 @@ pub struct QubitNode {
     pub index: QubitIndex,
     pub role: Option<QubitRole>,
     pub group: Option<OpGroup>,
-    pub coordinate: Option<(usize, usize)>,
+    pub coordinate: Option<(isize, isize)>,
 }
 
 impl WriteDot for QubitNode {
@@ -158,7 +158,7 @@ impl WriteDot for PlaquetteEdge {
 pub struct DecodeNode {
     pub index: QubitIndex,
     pub bit_index: Option<BitIndex>,
-    pub coordinate: (usize, usize),
+    pub coordinate: (isize, isize),
 }
 
 impl WriteDot for DecodeNode {

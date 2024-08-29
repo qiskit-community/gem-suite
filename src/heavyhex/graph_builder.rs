@@ -70,7 +70,7 @@ pub(super) fn build_qubit_graph(
         .min_by_key(|n| graph.node_weight(*n).unwrap().index)
         .unwrap();
     let node_weight = graph.node_weight_mut(min_node).unwrap();
-    node_weight.coordinate = Some((0_usize, 0_usize));
+    node_weight.coordinate = Some((0, 0));
     assign_qubit_coordinate_recursive(&min_node, &mut graph);
     // Check orientation.
     // Old IBM device may have different qubit index convention.
@@ -78,7 +78,7 @@ pub(super) fn build_qubit_graph(
         .node_weights()
         .map(|w| w.coordinate.unwrap())
         .collect();
-    if !all_coords.contains(&(4_usize, 0_usize)) {
+    if !all_coords.contains(&(4, 0)) {
         for weight in graph.node_weights_mut() {
             let c0 = weight.coordinate.unwrap();
             weight.coordinate = Some((c0.1, c0.0));
@@ -205,7 +205,7 @@ pub(super) fn build_decode_graph(
     // Compute snake attribute to form zig-zag pattern
     // Determine first edge (left-most or right-most) to keep
     let mut offset = 0_usize;
-    let mut bond_by_row = std::collections::BTreeMap::<usize, Vec<(usize, EdgeIndex)>>::new();
+    let mut bond_by_row = std::collections::BTreeMap::<isize, Vec<(isize, EdgeIndex)>>::new();
     for ei in decode_graph.edge_indices() {
         if let Some(sites) = decode_graph.edge_endpoints(ei) {
             let xy0 = decode_graph.node_weight(sites.0).unwrap().coordinate;
@@ -424,7 +424,7 @@ fn annotate_edges(
             .iter()
             .map(|qi| node_map[qi])
             .collect_vec();
-        let get_xy = |n: &NodeIndex| -> (usize, usize) {
+        let get_xy = |n: &NodeIndex| -> (isize, isize) {
             qubit_graph.node_weight(*n).unwrap().coordinate.unwrap()
         };
         // Sort by distance from the minimum qubit node

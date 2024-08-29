@@ -121,7 +121,7 @@ pub struct PyQubit {
     #[pyo3(get)]
     group: String,
     #[pyo3(get)]
-    coordinate: Option<(usize, usize)>,
+    coordinate: Option<(isize, isize)>,
     #[pyo3(get)]
     neighbors: Vec<QubitIndex>,
 }
@@ -634,7 +634,7 @@ impl BitSpecifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock::FALCON_CMAP;
+    use crate::mock::{FALCON_CMAP, EAGLE_CMAP};
 
     #[test]
     fn test_scheduling() {
@@ -679,6 +679,40 @@ mod tests {
                 PyScheduledGate {index0: 2, index1: 3, group: format!("B")},
                 PyScheduledGate {index0: 13, index1: 14, group: format!("B")},
                 PyScheduledGate {index0: 24, index1: 25, group: format!("B")},
+            ]
+        );
+    }
+
+    #[test]
+    fn test_filter() {
+        let coupling_map = EAGLE_CMAP.lock().unwrap().to_owned();
+        let plaquette_lattice = PyHeavyHexLattice::new(coupling_map);
+        let small_lattice = plaquette_lattice.filter(vec![1, 3]);
+        let weights = small_lattice.qubit_graph.node_weights().cloned().collect_vec();
+        assert_eq!(
+            weights,
+            vec![
+                QubitNode {index: 4, role: Some(QubitRole::Site), group: Some(OpGroup::A), coordinate: Some((0, 0))},
+                QubitNode {index: 5, role: Some(QubitRole::Bond), group: None, coordinate: Some((1, 0))},
+                QubitNode {index: 6, role: Some(QubitRole::Site), group: Some(OpGroup::B), coordinate: Some((2, 0))},
+                QubitNode {index: 7, role: Some(QubitRole::Bond), group: None, coordinate: Some((3, 0))},
+                QubitNode {index: 8, role: Some(QubitRole::Site), group: Some(OpGroup::A), coordinate: Some((4, 0))},
+                QubitNode {index: 15, role: Some(QubitRole::Bond), group: None, coordinate: Some((0, 1))},
+                QubitNode {index: 16, role: Some(QubitRole::Bond), group: None, coordinate: Some((4, 1))},
+                QubitNode {index: 20, role: Some(QubitRole::Site), group: Some(OpGroup::A), coordinate: Some((-2, 2))},
+                QubitNode {index: 21, role: Some(QubitRole::Bond), group: None, coordinate: Some((-1, 2))},
+                QubitNode {index: 22, role: Some(QubitRole::Site), group: Some(OpGroup::B), coordinate: Some((0, 2))},
+                QubitNode {index: 23, role: Some(QubitRole::Bond), group: None, coordinate: Some((1, 2))},
+                QubitNode {index: 24, role: Some(QubitRole::Site), group: Some(OpGroup::A), coordinate: Some((2, 2))},
+                QubitNode {index: 25, role: Some(QubitRole::Bond), group: None, coordinate: Some((3, 2))},
+                QubitNode {index: 26, role: Some(QubitRole::Site), group: Some(OpGroup::B), coordinate: Some((4, 2))},
+                QubitNode {index: 33, role: Some(QubitRole::Bond), group: None, coordinate: Some((-2, 3))},
+                QubitNode {index: 34, role: Some(QubitRole::Bond), group: None, coordinate: Some((2, 3))},
+                QubitNode {index: 39, role: Some(QubitRole::Site), group: Some(OpGroup::B), coordinate: Some((-2, 4))},
+                QubitNode {index: 40, role: Some(QubitRole::Bond), group: None, coordinate: Some((-1, 4))},
+                QubitNode {index: 41, role: Some(QubitRole::Site), group: Some(OpGroup::A), coordinate: Some((0, 4))},
+                QubitNode {index: 42, role: Some(QubitRole::Bond), group: None, coordinate: Some((1, 4))},
+                QubitNode {index: 43, role: Some(QubitRole::Site), group: Some(OpGroup::B), coordinate: Some((2, 4))},
             ]
         );
     }
