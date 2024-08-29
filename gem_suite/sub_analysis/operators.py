@@ -300,12 +300,12 @@ def analyze_clifford_limit(
             sorted([q for q in qubits if q.role == "Bond"], key=lambda q: q.index)
         )
     )
-    for plaquette in plaquettes:
+    for wi, plaquette in enumerate(plaquettes):
         all_obs = []
         sub_qubits = plaquette.qubits
         plq_index = plaquette.index
         filtered_data = clif_data[
-            (clif_data.name == "w") & (clif_data.component == plq_index)
+            (clif_data.name == "w") & (clif_data.component == wi)
         ]
         w_val = ufloat(np.average(filtered_data.value), np.std(filtered_data.value))
         all_obs.append(w_val)
