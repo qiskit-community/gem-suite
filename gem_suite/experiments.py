@@ -124,7 +124,7 @@ class GemExperiment(BaseExperiment):
 
         # Create virtual circuit
         # Virtual qubit index is based off of list index of self.physical_qubits
-        if usr_index := self.experiment_options.schedule_idx:
+        if (usr_index := self.experiment_options.schedule_idx) is not None:
             sched_idx = [usr_index]
         else:
             sched_idx = list(range(12))
