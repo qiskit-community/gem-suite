@@ -80,6 +80,12 @@ class GemExperiment(BaseExperiment):
                 self.experiment_options.num_angles,
             )
         return np.asarray(self.experiment_options.angles, dtype=float)
+    
+    @classmethod
+    def _default_transpile_options(cls) -> Options:
+        options = super()._default_transpile_options()
+        options.optimization_level = 1
+        return options
 
     @classmethod
     def _default_experiment_options(cls) -> Options:
