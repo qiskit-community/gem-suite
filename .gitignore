@@ -1,1 +1,46 @@
-/target
+# editor files
+.vscode/
+.idea/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Unit test / coverage reports
+.stestr/
+.tox/
+
+# Cargo
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# virtualenv
+.asv/
+.venv
+venv/
+ENV/
+
