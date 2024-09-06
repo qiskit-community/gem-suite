@@ -17,7 +17,7 @@ This library is designed to work with, not limited to, IBM Quantum processors.
 This package can be installed from the downloaded repository using pip as
 
 ```bash
-cd nishimori-cats
+cd gem-suite
 pip install .
 ```
 
