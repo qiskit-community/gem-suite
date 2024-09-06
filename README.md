@@ -24,7 +24,7 @@ pip install .
 ## Example
 
 In the GEM protocol, an atomic unit of the experiment is a plaquette, which is a collection of multiple qubits.
-For case of the conventional IBM Quantum processors with the heavy hexagonal lattice, 
+For the case of IBM Quantum processors with heavy hexagonal lattices, 
 a single plaquette contains 12 qubits and a single IBM Eagle processor has 18 plaquettes.
 This is an efficient compact representation of a quantum processor with a few hundred qubits. We anticipate very minor changes to this representation when scaling up to larger devices.
 
