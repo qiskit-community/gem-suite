@@ -36,7 +36,7 @@ We can partly reproduce experiments in the publication with few lines of code th
 from gem_suite.experiments import GemExperiment
 from qiskit_ibm_runtime import QiskitRuntimeService
 
-backend = QiskitRuntimeService().backend("ibm_osaka")
+backend = QiskitRuntimeService().backend("ibm_cusco")
 
 gem_exp = GemExperiment(plaquettes=range(18), backend=backend)
 exp_data = gem_exp.run().block_for_results()
