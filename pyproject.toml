@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gem-suite"
 description = "Qiskit Experiments suite for generation of entanglement using measurements."
-version = "0.1.2"
+version = "0.1.3"
 requires-python = ">= 3.8"
 authors = [{ name = "Naoki Kanazawa", email = "knzwnao@jp.ibm.com" }]
 dependencies = [
@@ -17,9 +17,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["black", "ruff"]
-
-[tool.setuptools.dynamic]
-readme = { file = "README.md", content-type = "text/markdown" }
 
 [tool.setuptools.packages.find]
 include = ["gem_suite", "gem_suite.*"]

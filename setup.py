@@ -23,4 +23,5 @@ setup(
         )
     ],
     options={"bdist_wheel": {"py_limited_api": "cp38"}},
+    long_description_content_type="text/markdown",
 )
