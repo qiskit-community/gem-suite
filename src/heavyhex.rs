@@ -105,12 +105,11 @@ lazy_static! {
 
 /// Annotated qubit dataclass to expose in Python domain.
 /// 
-/// # Attributes
-/// 
-/// * `index`: Qubit physical index.
-/// * `role`: Qubit role in [Site, Bond].
-/// * `group`: Two qubit gate parameterization grouping in [A, B].
-/// * `neighbors`: Index of neighboring qubits.
+/// Attributes:
+///     index (int): Qubit physical index.
+///     role (str): Qubit role either in Site or Bond.
+///     group (str): Two qubit gate parameterization grouping either in A or B.
+///     neighbors (list[int]): Index of neighboring qubits.
 #[pyclass]
 #[derive(Debug, PartialEq)]
 pub struct PyQubit {
@@ -143,11 +142,10 @@ impl PyQubit {
 
 /// Plaquette dataclass to expose in Python domain.
 /// 
-/// # Attributes
-/// 
-/// * `index`: Plaquette index.
-/// * `qubits`: Physical index of component qubits.
-/// * `neighbors`: Index of neighboring plaquettes.
+/// Attributes:
+///     index (int): Plaquette index.
+///     qubits (list[int]): Physical index of component qubits.
+///     neighbors (list[int]): Index of neighboring plaquettes.
 #[pyclass]
 #[derive(Debug, PartialEq)]
 pub struct PyPlaquette {
@@ -174,11 +172,10 @@ impl PyPlaquette {
 
 /// ScheduledGate dataclass to expose in Python domain.
 /// 
-/// # Attributes
-/// 
-/// * `index0`: First qubit where the entangling gate is applied to.
-/// * `index1`: Second qubit where the entangling gate is applied to.
-/// * `group`: Operation group in either A or B.
+/// Attributes:
+///     index0 (int): First qubit where the entangling gate is applied to.
+///     index1 (int): Second qubit where the entangling gate is applied to.
+///     group (str):  Two qubit gate parameterization grouping either in A or B.
 #[pyclass]
 #[derive(Debug, PartialEq)]
 pub struct PyScheduledGate {
@@ -211,6 +208,10 @@ impl PyScheduledGate {
 /// and the site qubits are further classified into OpGroup A or B.
 /// Edges (qubit coupling) are classified into one of 6 scheduling groups 
 /// corresponding to different scheduling pattern of entangling instructions.
+/// 
+/// Args:
+///     coupling_map (list[tuple[int, int]]): Coupling pairs which can be 
+///         either uni or bi-directional, e.g. [(0, 1), (1, 0), (1, 2), ...].
 pub struct PyHeavyHexLattice {
     pub plaquette_qubits_map: std::collections::BTreeMap<PlaquetteIndex, Vec<QubitIndex>>,
     pub qubit_graph: StableUnGraph<QubitNode, QubitEdge>,
@@ -223,10 +224,6 @@ pub struct PyHeavyHexLattice {
 impl PyHeavyHexLattice{
 
     /// Create new PyHeavyHexPlaquette from the device coupling map.
-    /// 
-    /// # Arguments
-    /// * `coupling_map`: Coupling pairs, e.g. [(0, 1), (1, 0), (1, 2), ...],
-    ///     which can be either uni or bi-directional.
     #[new]
     pub fn new(coupling_map: Vec<(usize, usize)>) -> Self {
         let (qubits, connectivity) = to_undirected(&coupling_map);
@@ -239,9 +236,9 @@ impl PyHeavyHexLattice{
 
     /// Create new PyHeavyHexPlaquette from already inspected topology data.
     /// 
-    /// # Arguments
-    /// * `plaquette_qubits_map`: Mapping from plaquette index to component physical qubits.
-    /// * `connectivity`: Unidirectional coupling between physical qubits.
+    /// Args:
+    ///     plaquette_qubits_map (dict[int, list[int]]): Mapping from plaquette index to component physical qubits.
+    ///     connectivity (list[tuple[int, int]]): Unidirectional coupling between physical qubits.
     #[classmethod]
     pub fn from_plaquettes(
         _: &Bound<'_, PyType>,
@@ -402,18 +399,18 @@ impl PyHeavyHexLattice{
     /// to compute quantities associated with prepared state magnetization 
     /// and other set of quantities associated with device error.
     /// 
-    /// # Arguments
-    /// * `lattice`: Plaquette lattice to provide lattice topology.
-    /// * `counts`: Count dictionary keyed on measured bitstring in little endian format.
-    /// * `return_counts`: Set true to return decoded count dictionary. 
-    ///   The dict data is not used in the following analysis in Python domain 
-    ///   while data size is large and thus increases the overhead in the FFI boundary.
-    ///   When this function is called from Rust, this overhead doesn't matter since
-    ///   data is just moved.
+    /// Args:
+    ///     counts (dict[str, int]): Count dictionary keyed on measured bitstring in little endian format.
+    ///     return_counts (bool): Set true to return decoded count dictionary. 
+    ///         The dict data is not used in the following analysis in Python domain 
+    ///         while data size is large and thus increases the overhead in the FFI boundary.
+    ///         When this function is called from Rust, this overhead doesn't matter since
+    ///         data is just moved.
     /// 
-    /// # Returns
-    /// A tuple of decoded count dictionary, plaquette and ZXZ bond observables,
-    /// and f and g values associated with decoded magnetization.
+    /// Returns:
+    ///     tuple[dict[str, any] | None, list[float], list[float], tuple[float, float], tuple[float, float]]: 
+    ///         A tuple of an optional decoded count dictionary, plaquette and ZXZ bond observables,
+    ///         and f and g values with uncertainty associated with decoded magnetization.
     pub fn decode_outcomes_fb(
         &self, 
         counts: HashMap<String, usize>,
@@ -431,19 +428,19 @@ impl PyHeavyHexLattice{
     /// to compute quantities associated with prepared state magnetization 
     /// and other set of quantities associated with device error.
     /// 
-    /// # Arguments
-    /// * `solver`: Call to the pymatching Matching decoder in the batch mode.
-    /// * `lattice`: Plaquette lattice to provide lattice topology.
-    /// * `counts`: Count dictionary keyed on measured bitstring in little endian format.
-    /// * `return_counts`: Set true to return decoded count dictionary. 
-    ///   The dict data is not used in the following analysis in Python domain 
-    ///   while data size is large and thus increases the overhead in the FFI boundary.
-    ///   When this function is called from Rust, this overhead doesn't matter since
-    ///   data is just moved.
+    /// Args:
+    ///     solver (Callable): Call to the pymatching Matching decoder in the batch mode.
+    ///     counts (dict[str, int]): Count dictionary keyed on measured bitstring in little endian format.
+    ///     return_counts (bool): Set true to return decoded count dictionary. 
+    ///         The dict data is not used in the following analysis in Python domain 
+    ///         while data size is large and thus increases the overhead in the FFI boundary.
+    ///         When this function is called from Rust, this overhead doesn't matter since
+    ///         data is just moved.
     /// 
-    /// # Returns
-    /// A tuple of decoded count dictionary, plaquette and ZXZ bond observables,
-    /// and f and g values associated with decoded magnetization.
+    /// Returns:
+    ///     tuple[dict[str, any] | None, list[float], list[float], tuple[float, float], tuple[float, float]]: 
+    ///         A tuple of an optional decoded count dictionary, plaquette and ZXZ bond observables,
+    ///         and f and g values with uncertainty associated with decoded magnetization.
     pub fn decode_outcomes_pm(
         &self, 
         py: Python,

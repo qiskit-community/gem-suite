@@ -47,14 +47,14 @@ impl WriteDot for NoisyPlaquetteNode {
 
 /// Draw plaquette graph with noise input.
 /// 
-/// # Arguments
-/// * `plaquette_qubits_map`: A mapping of plaquette index to including qubits.
-/// * `noise_map`: A mapping of plaquette index to noise.
-///   The noise value should stay in the range [0.0, 1.0].
+/// Args:
+///     plaquette_qubits_map (dict[int, list[int]]): A mapping of plaquette index to including qubits.
+///     noise_map: (dict[int, float]): A mapping of plaquette index to noise.
+///         The noise value should stay in the range [0.0, 1.0].
 /// 
-/// # Return
-/// Dot script of the noisy plaquette coupling graph.
-/// Noise intensity is shown in the graph nodes as filled colors.
+/// Returns:
+///     str: Dot script of the noisy plaquette coupling graph. 
+///         Noise intensity is shown in the graph nodes as filled colors.
 #[pyfunction]
 pub fn visualize_plaquette_with_noise(
     py: Python,
