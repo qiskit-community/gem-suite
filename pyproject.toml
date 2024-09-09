@@ -7,9 +7,7 @@ name = "gem-suite"
 description = "Qiskit Experiments suite for generation of entanglement using measurements."
 version = "0.1.1"
 requires-python = ">= 3.8"
-authors = [
-  {name = "Naoki Kanazawa", email = "knzwnao@jp.ibm.com"},
-]
+authors = [{ name = "Naoki Kanazawa", email = "knzwnao@jp.ibm.com" }]
 dependencies = [
     "pymatching",
     "qiskit >= 1.0",
@@ -18,10 +16,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "black",
-    "ruff",
-]
+dev = ["black", "ruff"]
+
+[tool.setuptools.dynamic]
+readme = { file = "README.md", content-type = "text/markdown" }
 
 [tool.setuptools.packages.find]
 include = ["gem_suite", "gem_suite.*"]
