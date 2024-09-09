@@ -18,6 +18,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["black", "ruff"]
 
+[tool.setuptools.dynamic]
+readme = { file = "README.md", content-type = "text/markdown" }
+
 [tool.setuptools.packages.find]
 include = ["gem_suite", "gem_suite.*"]
 
