@@ -79,6 +79,7 @@ class GemAnalysis(BaseAnalysis):
         options.set_validator("decoder", ["pymatching", "fusion-blossom"])
         return options
 
+    # pylint: disable=too-many-locals
     def _run_analysis(
         self,
         experiment_data: ExperimentData,
@@ -153,7 +154,7 @@ class GemAnalysis(BaseAnalysis):
                 )
         dataframe = pd.DataFrame.from_records(records)
         del records
-        
+
         # Analyze magnetizations
         num_site = 0
         for qubit in self._plaquettes.qubits():
@@ -188,7 +189,8 @@ class GemAnalysis(BaseAnalysis):
                 p_map = {p.index: p.qubits for p in self._plaquettes.plaquettes()}
                 noise_map = {
                     q.extra["plaquette"]: q.value.n
-                    for q in plaquette_qualities if q.value is not None
+                    for q in plaquette_qualities
+                    if q.value is not None
                 }
                 dot = visualize_plaquette_with_noise(p_map, noise_map)
                 fig_data.append(

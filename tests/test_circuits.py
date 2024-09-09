@@ -23,7 +23,7 @@ from gem_suite.experiments import GemExperiment
 
 class TestCircuit(unittest.TestCase):
     """Test that generates GEM circuit."""
-    
+
     def test_generate_circuit(self):
         """Test comparing virtual circuits."""
         exp = GemExperiment(range(2), backend=FakeGeneva())
@@ -56,7 +56,29 @@ class TestCircuit(unittest.TestCase):
         exp = GemExperiment(range(2), backend=FakeGeneva())
         self.assertListEqual(
             list(exp.physical_qubits),
-            [1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 13, 14, 15, 16, 18, 19, 21, 22, 23, 24, 25],
+            [
+                1,
+                2,
+                3,
+                4,
+                5,
+                7,
+                8,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                18,
+                19,
+                21,
+                22,
+                23,
+                24,
+                25,
+            ],
         )
 
     def test_parameter_list(self):

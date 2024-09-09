@@ -9,7 +9,6 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Decoder debugger with hard-coded Falcom coupling map."""
 from __future__ import annotations
 
@@ -18,6 +17,7 @@ from collections import defaultdict
 import numpy as np
 
 
+# pylint: disable=too-many-locals, disable=invalid-name
 def process_counts_debug(
     counts: dict[str, int]
 ) -> tuple[

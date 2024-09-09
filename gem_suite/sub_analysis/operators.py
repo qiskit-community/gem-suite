@@ -27,6 +27,7 @@ from gem_suite.plot_utils import plot_schedules
 from gem_suite.gem_core import PyQubit, PyPlaquette
 
 
+# pylint: disable=too-many-locals
 def analyze_operators(
     data: pd.DataFrame,
 ) -> tuple[list[FigureData], list[AnalysisResultData]]:
@@ -225,6 +226,7 @@ def analyze_individual_bonds(
         weights = 1 / yvals_std
         weights = np.clip(weights, 0.0, np.percentile(weights, 90))
 
+        # pylint: disable=cell-var-from-loop
         def objective(params):
             return zxz_model(xvals, params[0], params[1] - yvals_nominal) * weights
 
@@ -300,13 +302,12 @@ def analyze_clifford_limit(
             sorted([q for q in qubits if q.role == "Bond"], key=lambda q: q.index)
         )
     )
+    # pylint: disable=invalid-name
     for wi, plaquette in enumerate(plaquettes):
         all_obs = []
         sub_qubits = plaquette.qubits
         plq_index = plaquette.index
-        filtered_data = clif_data[
-            (clif_data.name == "w") & (clif_data.component == wi)
-        ]
+        filtered_data = clif_data[(clif_data.name == "w") & (clif_data.component == wi)]
         w_val = ufloat(np.average(filtered_data.value), np.std(filtered_data.value))
         all_obs.append(w_val)
         for bond_bit, bond_qubit in bond_to_qubits.items():
