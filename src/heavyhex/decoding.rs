@@ -108,7 +108,10 @@ pub(super) fn decode_outcomes_fb(
     let decoding_bits = lattice
         .decode_graph
         .edge_weights()
-        .filter_map(|ew| ew.variable_index.map(|index| (index, ew.bit_index.unwrap())))
+        .filter_map(|ew| {
+            ew.variable_index
+                .map(|index| (index, ew.bit_index.unwrap()))
+        })
         .collect::<HashMap<_, _>>();
     let snake_line = traverse_snake(&lattice.decode_graph);
     let n_bonds = lattice.bit_specifier.n_bonds;
@@ -209,7 +212,10 @@ pub(super) fn decode_outcomes_pm(
     let decoding_bits = lattice
         .decode_graph
         .edge_weights()
-        .filter_map(|ew| ew.variable_index.map(|index| (index, ew.bit_index.unwrap())))
+        .filter_map(|ew| {
+            ew.variable_index
+                .map(|index| (index, ew.bit_index.unwrap()))
+        })
         .collect::<HashMap<_, _>>();
     let snake_line = traverse_snake(&lattice.decode_graph);
     let n_bonds = lattice.bit_specifier.n_bonds;

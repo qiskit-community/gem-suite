@@ -75,7 +75,7 @@ impl WriteDot for QubitNode {
         }
         if let Some(xy) = self.coordinate {
             options.push(format!("pos=\"{},-{}\"", xy.0, xy.1));
-            options.push("pin=True".to_string());            
+            options.push("pin=True".to_string());
         }
         format!("{} [{}, shape=\"circle\"];", self.index, options.join(", "))
     }

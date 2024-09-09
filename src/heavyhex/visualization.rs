@@ -43,7 +43,7 @@ impl WriteDot for NoisyPlaquetteNode {
             "fontcolor=ghostwhite".to_string(),
             format!("fillcolor=\"{}\"", rgb_code),
             "style=filled".to_string(),
-        ];        
+        ];
         format!("{} [{}];", self.index, options.join(", "))
     }
 }

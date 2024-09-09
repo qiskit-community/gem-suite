@@ -623,17 +623,16 @@ impl BitSpecifier {
         self.syndrome_bonds
             .iter()
             .map(|bis| {
-                let sum =
-                    bis.iter().fold(
-                        0_usize,
-                        |sum, bi| {
-                            if bond_bits[*bi] {
-                                sum + 1
-                            } else {
-                                sum
-                            }
-                        },
-                    );
+                let sum = bis.iter().fold(
+                    0_usize,
+                    |sum, bi| {
+                        if bond_bits[*bi] {
+                            sum + 1
+                        } else {
+                            sum
+                        }
+                    },
+                );
                 sum % 2 == 1
             })
             .collect::<BitVec>()

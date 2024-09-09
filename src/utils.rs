@@ -20,9 +20,7 @@ use petgraph::stable_graph::StableUnGraph;
 
 /// Convert potential bidirectional coupling map to undirected.
 /// Coupling pairs (a, b) and (b, a) are merged into (a, b), where a < b.
-pub(crate) fn to_undirected(
-    connectivity: &[(usize, usize)],
-) -> (Vec<usize>, Vec<(usize, usize)>) {
+pub(crate) fn to_undirected(connectivity: &[(usize, usize)]) -> (Vec<usize>, Vec<(usize, usize)>) {
     let mut undirected: Vec<(usize, usize)> = connectivity
         .iter()
         .map(|p| if p.0 < p.1 { (p.0, p.1) } else { (p.1, p.0) })
