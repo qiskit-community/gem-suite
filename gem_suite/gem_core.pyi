@@ -9,7 +9,6 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
-"""This file contsins Python annotation for PyO3 classes and functions."""
 
 from typing import Callable
 
@@ -39,7 +38,9 @@ class PyHeavyHexLattice:
     def __init__(self, coupling_map: list[tuple[int, int]]) -> PyHeavyHexLattice: ...
     @classmethod
     def from_plaquettes(
-        plaquette_qubits_map: dict[int, list[int]], connectivity: list[tuple[int, int]]
+        cls,
+        plaquette_qubits_map: dict[int, list[int]],
+        connectivity: list[tuple[int, int]],
     ) -> PyHeavyHexLattice: ...
     def qubit_graph_dot(self) -> str: ...
     def plaquette_graph_dot(self) -> str: ...
@@ -49,7 +50,9 @@ class PyHeavyHexLattice:
     def connectivity(self) -> list[tuple[int, int]]: ...
     def filter(self, includes: list[int]) -> PyHeavyHexLattice: ...
     def build_gate_schedule(self, index: int) -> list[list[PyScheduledGate]]: ...
-    def decode_outcomes_fb(self, counts: dict[str, int], return_counts: bool) -> tuple[
+    def decode_outcomes_fb(
+        self, counts: dict[str, int], return_counts: bool
+    ) -> tuple[
         dict[str, int] | None,
         list[float],
         list[float],

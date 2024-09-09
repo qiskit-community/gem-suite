@@ -90,9 +90,7 @@ class GemAnalysis(BaseAnalysis):
         # Check if lattice object exists.
         # The lattice information is necessary for decoding experiment outcomes.
         if self._plaquettes is None:
-            plaquette_qubit_map = experiment_data.metadata.get(
-                "plaquette_qubit_map", None
-            )
+            plaquette_qubit_map = experiment_data.metadata.get("plaquette_qubit_map", None)
             connectivity = experiment_data.metadata.get("connectivity", None)
             if plaquette_qubit_map is None or connectivity is None:
                 raise RuntimeError(
@@ -101,9 +99,7 @@ class GemAnalysis(BaseAnalysis):
                     "This analysis cannot be performed because of "
                     "the missing lattice information to decode bitstrings."
                 )
-            lattice = PyHeavyHexLattice.from_plaquettes(
-                plaquette_qubit_map, connectivity
-            )
+            lattice = PyHeavyHexLattice.from_plaquettes(plaquette_qubit_map, connectivity)
             self._plaquettes = PlaquetteLattice(lattice)
 
         # Decode count dictionaries and build intermediate data collection.
@@ -194,9 +190,7 @@ class GemAnalysis(BaseAnalysis):
                 }
                 dot = visualize_plaquette_with_noise(p_map, noise_map)
                 fig_data.append(
-                    FigureData(
-                        dot_to_mplfigure(dot, "neato", 300), name="plaquette_quality"
-                    )
+                    FigureData(dot_to_mplfigure(dot, "neato", 300), name="plaquette_quality")
                 )
 
         return analysis_results, fig_data

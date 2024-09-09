@@ -13,8 +13,7 @@
 
 from __future__ import annotations
 
-from collections import namedtuple
-from typing import Iterator, Callable
+from typing import Iterator, Callable, NamedTuple
 
 import numpy as np
 from pymatching import Matching
@@ -25,8 +24,18 @@ from qiskit.providers import BackendV2
 from gem_suite.gem_core import PyHeavyHexLattice, PyQubit, PyPlaquette, PyScheduledGate
 from .plot_utils import dot_to_mplfigure
 
-ScheduledGate = namedtuple("ScheduledGate", ["q0", "q1", "group"])
-DecodeOutcome = namedtuple("DecodeOutcome", ["w_ops", "zxz_ops", "f", "g"])
+
+class ScheduledGate(NamedTuple):
+    q0: int
+    q1: int
+    group: str
+
+
+class DecodeOutcome(NamedTuple):
+    w_ops: list[float]
+    zxz_ops: list[float]
+    f: tuple[float, float]
+    g: tuple[float, float]
 
 
 class PlaquetteLattice:
@@ -138,9 +147,7 @@ class PlaquetteLattice:
         elif decoder == "pymatching":
             hvec, dims = self._core.check_matrix_csc()
             data = np.ones(len(hvec[0]))
-            solver = _build_batch_decoder(
-                csc_matrix((data, hvec), dims, dtype=np.bool_)
-            )
+            solver = _build_batch_decoder(csc_matrix((data, hvec), dims, dtype=np.bool_))
             out = self._core.decode_outcomes_pm(solver, counts, return_counts)
             outcome = DecodeOutcome(*out[1:])
         else:

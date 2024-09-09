@@ -76,25 +76,19 @@ def analyze_operators(
 
     yvals_w_nominal = unp.nominal_values(yvals_w)
     yvals_w_std = unp.std_devs(yvals_w)
-    yvals_w_std = np.where(
-        np.isclose(yvals_w_std, 0.0), np.finfo(float).eps, yvals_w_std
-    )
+    yvals_w_std = np.where(np.isclose(yvals_w_std, 0.0), np.finfo(float).eps, yvals_w_std)
     w_weights = 1 / yvals_w_std
     w_weights = np.clip(w_weights, 0.0, np.percentile(w_weights, 90))
 
     yvals_zxz_nominal = unp.nominal_values(yvals_zxz)
     yvals_zxz_std = unp.std_devs(yvals_zxz)
-    yvals_zxz_std = np.where(
-        np.isclose(yvals_zxz_std, 0.0), np.finfo(float).eps, yvals_zxz_std
-    )
+    yvals_zxz_std = np.where(np.isclose(yvals_zxz_std, 0.0), np.finfo(float).eps, yvals_zxz_std)
     zxz_weights = 1 / yvals_zxz_std
     zxz_weights = np.clip(zxz_weights, 0.0, np.percentile(zxz_weights, 90))
 
     def multi_residuals(params):
         r_w = (w_model(xvals, params[0]) - yvals_w_nominal) * w_weights
-        r_zxz = (
-            zxz_model(xvals, params[0], params[1]) - yvals_zxz_nominal
-        ) * zxz_weights
+        r_zxz = (zxz_model(xvals, params[0], params[1]) - yvals_zxz_nominal) * zxz_weights
         return np.concatenate([r_w, r_zxz])
 
     if ret := fit_util(
@@ -298,9 +292,7 @@ def analyze_clifford_limit(
         return []
     plaquettes = sorted(plaquettes, key=lambda p: p.index)
     bond_to_qubits = dict(
-        enumerate(
-            sorted([q for q in qubits if q.role == "Bond"], key=lambda q: q.index)
-        )
+        enumerate(sorted([q for q in qubits if q.role == "Bond"], key=lambda q: q.index))
     )
     # pylint: disable=invalid-name
     for wi, plaquette in enumerate(plaquettes):
@@ -314,12 +306,8 @@ def analyze_clifford_limit(
             # Take bond qubits in this plaquette
             if bond_qubit.index not in sub_qubits:
                 continue
-            filtered_data = clif_data[
-                (clif_data.name == "zxz") & (clif_data.component == bond_bit)
-            ]
-            zxz_val = ufloat(
-                np.average(filtered_data.value), np.std(filtered_data.value)
-            )
+            filtered_data = clif_data[(clif_data.name == "zxz") & (clif_data.component == bond_bit)]
+            zxz_val = ufloat(np.average(filtered_data.value), np.std(filtered_data.value))
             all_obs.append(zxz_val)
         if any(o < 0 for o in all_obs):
             value = None

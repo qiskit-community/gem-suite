@@ -20,9 +20,7 @@ import numpy as np
 # pylint: disable=too-many-locals, disable=invalid-name
 def process_counts_debug(
     counts: dict[str, int]
-) -> tuple[
-    dict[str, int], list[float], list[float], tuple[float, float], tuple[float, float]
-]:
+) -> tuple[dict[str, int], list[float], list[float], tuple[float, float], tuple[float, float]]:
     """Generate reference decoded outcomes.
 
     Cheat sheet:
@@ -126,39 +124,17 @@ def process_counts_debug(
         if syndromes[1] == 1:
             syndrome_sum[1] += count_num
         # Add up bond correlation
-        bond_sum[0] += (
-            count_num if bond_bits[0] ^ site_bits[0] ^ site_bits[1] else -count_num
-        )
-        bond_sum[1] += (
-            count_num if bond_bits[1] ^ site_bits[0] ^ site_bits[2] else -count_num
-        )
-        bond_sum[2] += (
-            count_num if bond_bits[2] ^ site_bits[1] ^ site_bits[3] else -count_num
-        )
-        bond_sum[3] += (
-            count_num if bond_bits[3] ^ site_bits[2] ^ site_bits[4] else -count_num
-        )
-        bond_sum[4] += (
-            count_num if bond_bits[4] ^ site_bits[3] ^ site_bits[5] else -count_num
-        )
-        bond_sum[5] += (
-            count_num if bond_bits[5] ^ site_bits[4] ^ site_bits[5] else -count_num
-        )
-        bond_sum[6] += (
-            count_num if bond_bits[6] ^ site_bits[4] ^ site_bits[6] else -count_num
-        )
-        bond_sum[7] += (
-            count_num if bond_bits[7] ^ site_bits[5] ^ site_bits[7] else -count_num
-        )
-        bond_sum[8] += (
-            count_num if bond_bits[8] ^ site_bits[6] ^ site_bits[8] else -count_num
-        )
-        bond_sum[9] += (
-            count_num if bond_bits[9] ^ site_bits[7] ^ site_bits[9] else -count_num
-        )
-        bond_sum[10] += (
-            count_num if bond_bits[10] ^ site_bits[8] ^ site_bits[9] else -count_num
-        )
+        bond_sum[0] += count_num if bond_bits[0] ^ site_bits[0] ^ site_bits[1] else -count_num
+        bond_sum[1] += count_num if bond_bits[1] ^ site_bits[0] ^ site_bits[2] else -count_num
+        bond_sum[2] += count_num if bond_bits[2] ^ site_bits[1] ^ site_bits[3] else -count_num
+        bond_sum[3] += count_num if bond_bits[3] ^ site_bits[2] ^ site_bits[4] else -count_num
+        bond_sum[4] += count_num if bond_bits[4] ^ site_bits[3] ^ site_bits[5] else -count_num
+        bond_sum[5] += count_num if bond_bits[5] ^ site_bits[4] ^ site_bits[5] else -count_num
+        bond_sum[6] += count_num if bond_bits[6] ^ site_bits[4] ^ site_bits[6] else -count_num
+        bond_sum[7] += count_num if bond_bits[7] ^ site_bits[5] ^ site_bits[7] else -count_num
+        bond_sum[8] += count_num if bond_bits[8] ^ site_bits[6] ^ site_bits[8] else -count_num
+        bond_sum[9] += count_num if bond_bits[9] ^ site_bits[7] ^ site_bits[9] else -count_num
+        bond_sum[10] += count_num if bond_bits[10] ^ site_bits[8] ^ site_bits[9] else -count_num
         # Hardcoded decoder
         # There are three check variables (<q04>, <q13>, <q15>) to solve.
         decode_in_out = {
@@ -219,12 +195,9 @@ def calculate_f_and_g(dist):
     out_g = 1 / num_data**3 * (m4 - m2**2)
 
     std_f = (
-        m4 / num_shots
-        - (m2 - m1**2) ** 2 * (num_shots - 3) / num_shots / (num_shots - 1)
+        m4 / num_shots - (m2 - m1**2) ** 2 * (num_shots - 3) / num_shots / (num_shots - 1)
     ) ** 0.5
-    std_g = (
-        m8 / num_shots - std_f**4 * (num_shots - 3) / num_shots / (num_shots - 1)
-    ) ** 0.5
+    std_g = (m8 / num_shots - std_f**4 * (num_shots - 3) / num_shots / (num_shots - 1)) ** 0.5
 
     std_f /= num_data
     std_g /= num_data**3

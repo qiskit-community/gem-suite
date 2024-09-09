@@ -1,5 +1,0 @@
-black
-stestr
-astroid==2.14.2
-pylint==2.16.2
-qiskit_ibm_runtime

@@ -51,9 +51,7 @@ class GemExperiment(BaseExperiment):
             RuntimeError: When plaquettes are selected by index but backend is not provided.
         """
         if not isinstance(plaquettes, PlaquetteLattice):
-            plaquettes = PlaquetteLattice.from_backend(backend).filter(
-                includes=plaquettes
-            )
+            plaquettes = PlaquetteLattice.from_backend(backend).filter(includes=plaquettes)
         qubits = [q.index for q in plaquettes.qubits()]
         super().__init__(
             physical_qubits=qubits,
@@ -161,12 +159,8 @@ class GemExperiment(BaseExperiment):
 
     def circuits(self) -> list[QuantumCircuit]:
         circs_bound = []
-        for tmp_circ, param in product(
-            self.parameterized_circuits(), self.parameters()
-        ):
-            assigned = tmp_circ.assign_parameters(
-                {self.parameter: param}, inplace=False
-            )
+        for tmp_circ, param in product(self.parameterized_circuits(), self.parameters()):
+            assigned = tmp_circ.assign_parameters({self.parameter: param}, inplace=False)
             assigned.metadata["theta"] = np.round(param / np.pi, 5)
             circs_bound.append(assigned)
         return circs_bound
@@ -174,7 +168,5 @@ class GemExperiment(BaseExperiment):
     def _metadata(self) -> dict[str, Any]:
         metadata = super()._metadata()
         metadata["connectivity"] = self.plaquettes.connectivity()
-        metadata["plaquette_qubit_map"] = {
-            p.index: p.qubits for p in self.plaquettes.plaquettes()
-        }
+        metadata["plaquette_qubit_map"] = {p.index: p.qubits for p in self.plaquettes.plaquettes()}
         return metadata

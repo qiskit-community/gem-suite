@@ -13,3 +13,11 @@
 
 from .plaquettes import PlaquetteLattice
 from .experiments import GemExperiment
+from .analysis import GemAnalysis
+
+
+__all__ = [
+    "PlaquetteLattice",
+    "GemExperiment",
+    "GemAnalysis",
+]

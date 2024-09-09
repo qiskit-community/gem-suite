@@ -13,3 +13,24 @@ authors = [
 
 [tool.setuptools.packages.find]
 include = ["gem_suite", "gem_suite.*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.ruff]
+line-length = 105
+src = ["gem_suite", "setup.py", "tests"]
+target-version = "py38"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "UP",  # pyupgrade
+    "PYI", # flake8-pyi
+    "Q",   # flake8-quotes
+]
+
+[tool.ruff.lint.per-file-ignores]
+"*.pyi" = ["F403", "F405", "PYI001", "PYI002"]
