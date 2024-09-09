@@ -12,12 +12,12 @@
 
 // Note::
 //
-// Johnson's algorithm for simple cycle search is partly ported from the rustworkx-core project at 
-// 
+// Johnson's algorithm for simple cycle search is partly ported from the rustworkx-core project at
+//
 //     https://github.com/Qiskit/rustworkx/blob/main/src/connectivity/johnson_simple_cycles.rs
 //
 // with modification for simplification and specialization for HHL plaquette search.
-// This code doesn't implement Python iterator. 
+// This code doesn't implement Python iterator.
 // Instead, it returns all plaquettes at a single function call.
 
 use ahash::RandomState;
@@ -27,24 +27,23 @@ use indexmap::IndexSet;
 use petgraph::graph::NodeIndex;
 use petgraph::stable_graph::StableUnGraph;
 
-
 /// Lightweight Johnson's algorithm to find plaquettes.
 /// HHL plaquette is a cycle of 12 qubits and the qubit connectivity is always a single connected components.
 /// No self cycle exists and no isolated qubit exists.
 /// These are valid assumptions for the coupling map of production backends.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `qubits`: All qubits in the device coupling map.
 /// * `connectivity`: Non-duplicated coupling pairs, e.g. [(0, 1), (1, 2), ...].
-/// 
+///
 /// # Return
-/// 
-/// This function returns a vector of qubit list comprising a plaquette. 
+///
+/// This function returns a vector of qubit list comprising a plaquette.
 /// The returned vector is sorted by the minimum qubit index in plaquettes.
 pub(super) fn heavyhex_cycle(
     qubits: &Vec<usize>,
-    connectivity: &Vec<(usize, usize)>,
+    connectivity: &[(usize, usize)],
 ) -> Vec<Vec<usize>> {
     let mut plaquettes = Vec::<Vec<usize>>::new();
 
@@ -59,11 +58,14 @@ pub(super) fn heavyhex_cycle(
         match (node_map.get(&qubits.0), node_map.get(&qubits.1)) {
             (Some(n0), Some(n1)) => {
                 scc_graph.add_edge(*n0, *n1, ());
-            },
-            _ => continue
+            }
+            _ => continue,
         }
     }
-    let reverse_node_map = node_map.iter().map(|(k, v)| (*v, *k)).collect::<HashMap<_, _>>();
+    let reverse_node_map = node_map
+        .iter()
+        .map(|(k, v)| (*v, *k))
+        .collect::<HashMap<_, _>>();
 
     // Reverse the order to pop from small qubit index
     scc.reverse();
@@ -75,16 +77,18 @@ pub(super) fn heavyhex_cycle(
         let mut block: HashMap<NodeIndex, HashSet<NodeIndex>> = HashMap::new();
         let mut stack: Vec<(NodeIndex, IndexSet<NodeIndex, ahash::RandomState>)> = vec![(
             start_node,
-            scc_graph.neighbors(start_node).collect::<IndexSet<NodeIndex, ahash::RandomState>>()
+            scc_graph
+                .neighbors(start_node)
+                .collect::<IndexSet<NodeIndex, ahash::RandomState>>(),
         )];
         while let Some(res) = process_stack(
-            start_node, 
-            &mut stack, 
-            &mut path, 
-            &mut closed, 
-            &mut blocked, 
-            &mut block, 
-            &scc_graph, 
+            start_node,
+            &mut stack,
+            &mut path,
+            &mut closed,
+            &mut blocked,
+            &mut block,
+            &scc_graph,
             &reverse_node_map,
         ) {
             if !plaquettes.contains(&res) {
@@ -99,7 +103,6 @@ pub(super) fn heavyhex_cycle(
     plaquettes.sort_unstable_by_key(|plq| plq[0]);
     plaquettes
 }
-
 
 fn unblock(
     node: NodeIndex,
@@ -125,7 +128,7 @@ fn unblock(
     }
 }
 
-
+#[allow(clippy::too_many_arguments)]
 fn process_stack(
     start_node: NodeIndex,
     stack: &mut Vec<(NodeIndex, IndexSet<NodeIndex, ahash::RandomState>)>,
@@ -141,7 +144,6 @@ fn process_stack(
         return None;
     }
     while let Some((this_node, neighbors)) = stack.last_mut() {
-
         if let Some(next_node) = neighbors.pop() {
             if next_node == start_node {
                 if path.len() == 12 {
@@ -159,7 +161,9 @@ fn process_stack(
                     path.push(next_node);
                     stack.push((
                         next_node,
-                        subgraph.neighbors(next_node).collect::<IndexSet<NodeIndex, ahash::RandomState>>(),
+                        subgraph
+                            .neighbors(next_node)
+                            .collect::<IndexSet<NodeIndex, ahash::RandomState>>(),
                     ));
                     closed.remove(&next_node);
                     blocked.insert(next_node);
@@ -187,11 +191,10 @@ fn process_stack(
     None
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock::{FALCON_CMAP, EAGLE_CMAP};
+    use crate::mock::{EAGLE_CMAP, FALCON_CMAP};
     use crate::utils::to_undirected;
 
     #[test]
@@ -201,10 +204,7 @@ mod tests {
 
         let plaquettes = heavyhex_cycle(&qubits, &connectivity);
         assert_eq!(plaquettes.len(), 2);
-        assert_eq!(
-            plaquettes[0],
-            vec![1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 13, 14],
-        );
+        assert_eq!(plaquettes[0], vec![1, 2, 3, 4, 5, 7, 8, 10, 11, 12, 13, 14],);
         assert_eq!(
             plaquettes[1],
             vec![12, 13, 14, 15, 16, 18, 19, 21, 22, 23, 24, 25],

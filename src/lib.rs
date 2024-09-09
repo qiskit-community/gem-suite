@@ -12,8 +12,8 @@
 
 use pyo3::prelude::*;
 
-pub mod heavyhex;
 mod graph;
+pub mod heavyhex;
 mod mock;
 mod utils;
 
@@ -23,6 +23,9 @@ fn gem_core(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<heavyhex::PyQubit>()?;
     m.add_class::<heavyhex::PyPlaquette>()?;
     m.add_class::<heavyhex::PyScheduledGate>()?;
-    m.add_function(wrap_pyfunction!(heavyhex::visualization::visualize_plaquette_with_noise, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        heavyhex::visualization::visualize_plaquette_with_noise,
+        m
+    )?)?;
     Ok(())
 }

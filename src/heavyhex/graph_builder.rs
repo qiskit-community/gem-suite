@@ -13,12 +13,11 @@
 use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
 
+use lazy_static::lazy_static;
 use petgraph::graph::{EdgeIndex, NodeIndex};
 use petgraph::stable_graph::StableUnGraph;
-use lazy_static::lazy_static;
 
 use crate::graph::*;
-
 
 lazy_static! {
     static ref SCHEDULING_PATTERN: Vec<SchedulingGroup> = vec![
@@ -37,28 +36,37 @@ lazy_static! {
     ];
 }
 
-
-/// Build basic qubit coupling graph 
+/// Build basic qubit coupling graph
 /// with annotation for GEM circuit generation.
 /// A node in the graph is a qubit, and an edge is physical coupling between qubits.
 pub(super) fn build_qubit_graph(
-    qubits: &Vec<usize>, 
-    connectivity: &Vec<(usize, usize)>,
+    qubits: &[usize],
+    connectivity: &[(usize, usize)],
     plaquette_qubits_map: &std::collections::BTreeMap<PlaquetteIndex, Vec<QubitIndex>>,
 ) -> StableUnGraph<QubitNode, QubitEdge> {
-    let mut graph: StableUnGraph<QubitNode, QubitEdge> = StableUnGraph::with_capacity(qubits.len(), connectivity.len());
+    let mut graph: StableUnGraph<QubitNode, QubitEdge> =
+        StableUnGraph::with_capacity(qubits.len(), connectivity.len());
     // Build graph
     let mut node_map = HashMap::<usize, NodeIndex>::with_capacity(qubits.len());
     for qidx in qubits.iter() {
-        let nidx = graph.add_node(QubitNode {index: *qidx, role: None, group: None, coordinate: None});
+        let nidx = graph.add_node(QubitNode {
+            index: *qidx,
+            role: None,
+            group: None,
+            coordinate: None,
+        });
         node_map.insert(*qidx, nidx);
     }
     for (qi, qj) in connectivity.iter() {
         match (node_map.get(qi), node_map.get(qj)) {
             (Some(ni), Some(nj)) => {
-                let edge = QubitEdge {neighbor0: *qi, neighbor1: *qj, group: None};
+                let edge = QubitEdge {
+                    neighbor0: *qi,
+                    neighbor1: *qj,
+                    group: None,
+                };
                 graph.add_edge(*ni, *nj, edge);
-            },
+            }
             // Node is not a part of plaquette
             _ => continue,
         }
@@ -89,7 +97,6 @@ pub(super) fn build_qubit_graph(
     graph
 }
 
-
 /// Build plaquette graph.
 /// A graph node corresponds to a single heavy hex lattice,
 /// and an edge between nodes represents some shared qubits between plaquettes.
@@ -99,24 +106,29 @@ pub(super) fn build_plaquette_graph(
     let nodes = plaquette_qubits_map
         .keys()
         .enumerate()
-        .map(|(si, pi)| PlaquetteNode { index: *pi, syndrome_index: si })
+        .map(|(si, pi)| PlaquetteNode {
+            index: *pi,
+            syndrome_index: si,
+        })
         .collect_vec();
     let edges = plaquette_qubits_map
         .iter()
         .tuple_combinations::<(_, _)>()
-        .filter_map(
-            |plqs| {
-                let qs0 = plqs.0.1.iter().collect::<HashSet<_>>();
-                let qs1 = plqs.1.1.iter().collect::<HashSet<_>>();
-                if !qs0.is_disjoint(&qs1) {
-                    Some(PlaquetteEdge {neighbor0: *plqs.0.0, neighbor1: *plqs.1.0})
-                } else {
-                    None
-                }
+        .filter_map(|plqs| {
+            let qs0 = plqs.0 .1.iter().collect::<HashSet<_>>();
+            let qs1 = plqs.1 .1.iter().collect::<HashSet<_>>();
+            if !qs0.is_disjoint(&qs1) {
+                Some(PlaquetteEdge {
+                    neighbor0: *plqs.0 .0,
+                    neighbor1: *plqs.1 .0,
+                })
+            } else {
+                None
             }
-        )
+        })
         .collect_vec();
-    let mut graph = StableUnGraph::<PlaquetteNode, PlaquetteEdge>::with_capacity(nodes.len(), edges.len());
+    let mut graph =
+        StableUnGraph::<PlaquetteNode, PlaquetteEdge>::with_capacity(nodes.len(), edges.len());
     let mut node_map = HashMap::<usize, NodeIndex>::new();
     for node in nodes {
         let p_index = node.index;
@@ -130,7 +142,6 @@ pub(super) fn build_plaquette_graph(
     }
     graph
 }
-
 
 /// Build graph with code annotation.
 /// In this graph, nodes are site qubits and edges are bond qubits.
@@ -191,7 +202,10 @@ pub(super) fn build_decode_graph(
         q.bit_index = Some(bi);
     }
     let mut node_map = HashMap::<QubitIndex, NodeIndex>::with_capacity(site_qubits.len());
-    let mut decode_graph = StableUnGraph::<DecodeNode, DecodeEdge>::with_capacity(site_qubits.len(), bond_qubits.len());
+    let mut decode_graph = StableUnGraph::<DecodeNode, DecodeEdge>::with_capacity(
+        site_qubits.len(),
+        bond_qubits.len(),
+    );
     for site in site_qubits {
         let qi = site.index;
         let ni = decode_graph.add_node(site);
@@ -223,8 +237,10 @@ pub(super) fn build_decode_graph(
     }
     let pos_eidx_tup = bond_by_row.values().collect_vec();
     if pos_eidx_tup.len() > 1 {
-        let center_row0 = pos_eidx_tup[0].iter().fold(0, |acc, v| acc + v.0) as f64 / pos_eidx_tup[0].len() as f64;
-        let center_row1 = pos_eidx_tup[1].iter().fold(0, |acc, v| acc + v.0) as f64 / pos_eidx_tup[1].len() as f64;
+        let center_row0 = pos_eidx_tup[0].iter().fold(0, |acc, v| acc + v.0) as f64
+            / pos_eidx_tup[0].len() as f64;
+        let center_row1 = pos_eidx_tup[1].iter().fold(0, |acc, v| acc + v.0) as f64
+            / pos_eidx_tup[1].len() as f64;
         if center_row0 > center_row1 {
             offset = 1;
         }
@@ -256,8 +272,12 @@ pub(super) fn build_decode_graph(
     let mut decoding_edges = std::collections::BTreeMap::<usize, EdgeIndex>::new();
     // Find shared bonds
     for plq_edge in plaquette_graph.edge_weights() {
-        let p0_qubits = plaquette_qubits_map[&plq_edge.neighbor0].iter().collect::<HashSet<_>>();
-        let p1_qubits = plaquette_qubits_map[&plq_edge.neighbor1].iter().collect::<HashSet<_>>();
+        let p0_qubits = plaquette_qubits_map[&plq_edge.neighbor0]
+            .iter()
+            .collect::<HashSet<_>>();
+        let p1_qubits = plaquette_qubits_map[&plq_edge.neighbor1]
+            .iter()
+            .collect::<HashSet<_>>();
         for qi in p0_qubits.intersection(&p1_qubits) {
             if let Some(decode_edge) = edge_map.get(*qi) {
                 decoding_edges.insert(decode_edge.0, decode_edge.1);
@@ -275,7 +295,11 @@ pub(super) fn build_decode_graph(
             let neighbors = decode_graph.neighbors(ni).collect_vec();
             if neighbors.len() == 2 {
                 let boundary_edge = decode_graph.find_edge(ni, neighbors[0]).unwrap();
-                let bit_idx = decode_graph.edge_weight(boundary_edge).unwrap().bit_index.unwrap();
+                let bit_idx = decode_graph
+                    .edge_weight(boundary_edge)
+                    .unwrap()
+                    .bit_index
+                    .unwrap();
                 decoding_edges.insert(bit_idx, boundary_edge);
                 // Move to next plaquette
                 break;
@@ -293,11 +317,10 @@ pub(super) fn build_decode_graph(
     decode_graph
 }
 
-
 fn assign_qubit_coordinate_recursive(
     node: &NodeIndex,
     graph: &mut StableUnGraph<QubitNode, QubitEdge>,
-) -> () {
+) {
     let neighbors: Vec<_> = graph
         .neighbors(*node)
         .map(|n| (n, *graph.node_weight(n).unwrap()))
@@ -306,7 +329,7 @@ fn assign_qubit_coordinate_recursive(
     let xy = qi.coordinate.unwrap();
 
     for (nj, qj) in neighbors {
-        if let Some(_) = qj.coordinate {
+        if qj.coordinate.is_some() {
             continue;
         }
         if let Some(qj_mut) = graph.node_weight_mut(nj) {
@@ -331,21 +354,13 @@ fn assign_qubit_coordinate_recursive(
     }
 }
 
-
-fn annotate_nodes(qubit_graph: &mut StableUnGraph<QubitNode, QubitEdge>) -> () {
+fn annotate_nodes(qubit_graph: &mut StableUnGraph<QubitNode, QubitEdge>) {
     // In HHL, degree 3 nodes become site qubits.
     let mut deg3nodes: Vec<_> = qubit_graph
         .node_indices()
-        .filter_map(|n| {
-            let neighbors: Vec<_> = qubit_graph.neighbors(n).collect();
-            if neighbors.len() == 3 {
-                Some(n)
-            } else {
-                None
-            }
-        })
+        .filter(|n| qubit_graph.neighbors(*n).collect_vec().len() == 3)
         .collect();
-    if deg3nodes.len() == 0 {
+    if deg3nodes.is_empty() {
         // When there is only one plaquette no degree 3 node exists.
         // In this case use top left.
         let min_node = qubit_graph
@@ -363,20 +378,14 @@ fn annotate_nodes(qubit_graph: &mut StableUnGraph<QubitNode, QubitEdge>) -> () {
     }
     let mut unassigned: Vec<_> = qubit_graph
         .node_indices()
-        .filter_map(|n| {
-            if qubit_graph.node_weight(n).unwrap().role.is_none() {
-                Some(n)
-            } else {
-                None
-            }
-        })
+        .filter(|n| qubit_graph.node_weight(*n).unwrap().role.is_none())
         .collect();
     while let Some(n) = unassigned.pop() {
         let neighbor_roles: Vec<_> = qubit_graph
             .neighbors(n)
             .filter_map(|n: NodeIndex| qubit_graph.node_weight(n).unwrap().role)
             .collect();
-        if neighbor_roles.len() == 0 {
+        if neighbor_roles.is_empty() {
             unassigned.insert(0, n);
             continue;
         }
@@ -392,13 +401,7 @@ fn annotate_nodes(qubit_graph: &mut StableUnGraph<QubitNode, QubitEdge>) -> () {
     // Assign OpGroup to site qubits
     let site_nodes: Vec<_> = qubit_graph
         .node_indices()
-        .filter_map(|n| {
-            if qubit_graph.node_weight(n).unwrap().role == Some(QubitRole::Site) {
-                Some(n)                
-            } else {
-                None
-            }
-        })
+        .filter(|n| qubit_graph.node_weight(*n).unwrap().role == Some(QubitRole::Site))
         .collect();
 
     // Min qubit index node becomes Group A as a starting point
@@ -410,20 +413,16 @@ fn annotate_nodes(qubit_graph: &mut StableUnGraph<QubitNode, QubitEdge>) -> () {
     assign_opgroup_recursive(min_node, qubit_graph, OpGroup::A);
 }
 
-
 fn annotate_edges(
     qubit_graph: &mut StableUnGraph<QubitNode, QubitEdge>,
     plaquette_qubits_map: &std::collections::BTreeMap<PlaquetteIndex, Vec<QubitIndex>>,
-) -> () {
+) {
     let node_map = qubit_graph
         .node_indices()
         .map(|n| (qubit_graph.node_weight(n).unwrap().index, n))
         .collect::<HashMap<_, _>>();
     for plaquette_qubits in plaquette_qubits_map.values() {
-        let plq_nodes = plaquette_qubits
-            .iter()
-            .map(|qi| node_map[qi])
-            .collect_vec();
+        let plq_nodes = plaquette_qubits.iter().map(|qi| node_map[qi]).collect_vec();
         let get_xy = |n: &NodeIndex| -> (isize, isize) {
             qubit_graph.node_weight(*n).unwrap().coordinate.unwrap()
         };
@@ -431,7 +430,7 @@ fn annotate_edges(
         let topleft = *plq_nodes
             .iter()
             .min_by_key(|n| {
-                let xy = get_xy(*n);
+                let xy = get_xy(n);
                 xy.0 + xy.1
             })
             .unwrap();
@@ -447,7 +446,7 @@ fn annotate_edges(
                 break;
             }
         }
-        let mut this = topleft.clone();
+        let mut this = topleft;
         let mut prev = if let Some(prev) = any_prev {
             prev
         } else {
@@ -455,10 +454,7 @@ fn annotate_edges(
         };
         // Go clockwise from found edge
         let mut clkwise_edges = Vec::<EdgeIndex>::new();
-        let coloring_iter = SCHEDULING_PATTERN
-            .to_owned()
-            .into_iter()
-            .cycle();
+        let coloring_iter = SCHEDULING_PATTERN.iter().copied().cycle();
         loop {
             for ni in qubit_graph.neighbors(this) {
                 if (ni == prev) | !plq_nodes.contains(&ni) {
@@ -480,8 +476,7 @@ fn annotate_edges(
                 if group != color {
                     panic!(
                         "Coupling edge from {} to {} has conflicting colors.",
-                        weight.neighbor0,
-                        weight.neighbor1,
+                        weight.neighbor0, weight.neighbor1,
                     )
                 } else {
                     continue;
@@ -492,12 +487,11 @@ fn annotate_edges(
     }
 }
 
-
 fn assign_opgroup_recursive(
-    node: NodeIndex, 
+    node: NodeIndex,
     graph: &mut StableUnGraph<QubitNode, QubitEdge>,
     group: OpGroup,
-) -> () {
+) {
     let weight = graph.node_weight_mut(node).unwrap();
     if weight.group.is_some() {
         return;
@@ -516,7 +510,6 @@ fn assign_opgroup_recursive(
     }
 }
 
-
 /// Traverse snake graph and returns a vector of three bit index tuple
 /// (gauge, site, bond) that draw snake pattern in one stroke.
 pub(super) fn traverse_snake(
@@ -524,34 +517,24 @@ pub(super) fn traverse_snake(
 ) -> Vec<(usize, usize, usize)> {
     let snake_ends = graph
         .node_indices()
-        .filter_map(|ni| {
-            let n_neighbors = graph
-                .neighbors(ni)
-                .fold(0_usize, |sum, mi| {
-                    let ei = graph.find_edge(ni, mi).unwrap();
-                    if graph.edge_weight(ei).unwrap().keep_in_snake {
-                        sum + 1
-                    } else {
-                        sum
-                    }
-                });
-            if n_neighbors == 1 {
-                Some(ni)
-            } else {
-                None
-            }
+        .filter(|ni| {
+            let n_neighbors = graph.neighbors(*ni).fold(0_usize, |sum, mi| {
+                let ei = graph.find_edge(*ni, mi).unwrap();
+                if graph.edge_weight(ei).unwrap().keep_in_snake {
+                    sum + 1
+                } else {
+                    sum
+                }
+            });
+            n_neighbors == 1
         })
         .collect_vec();
     if snake_ends.len() != 2 {
-        panic!(
-            "The snake graph has more than two end nodes. Likely invalid plaquette sublattice."
-        )
+        panic!("The snake graph has more than two end nodes. Likely invalid plaquette sublattice.")
     }
-    let start_node = std::cmp::min_by_key(
-        snake_ends[0], 
-        snake_ends[1], 
-        |ni| graph.node_weight(*ni).unwrap().bit_index.unwrap()
-    );
+    let start_node = std::cmp::min_by_key(snake_ends[0], snake_ends[1], |ni| {
+        graph.node_weight(*ni).unwrap().bit_index.unwrap()
+    });
     let mut visited = Vec::<NodeIndex>::with_capacity(graph.node_count());
     let mut this = start_node;
     let mut snake_edge = Vec::<(usize, usize, usize)>::new();
@@ -581,7 +564,6 @@ pub(super) fn traverse_snake(
     }
     snake_edge
 }
-
 
 #[cfg(test)]
 mod tests {
