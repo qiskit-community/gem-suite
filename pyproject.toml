@@ -10,6 +10,18 @@ requires-python = ">= 3.8"
 authors = [
   {name = "Naoki Kanazawa", email = "knzwnao@jp.ibm.com"},
 ]
+dependencies = [
+    "pymatching",
+    "qiskit >= 1.0",
+    "qiskit-experiments >= 0.7",
+    "qiskit-ibm-runtime",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "ruff",
+]
 
 [tool.setuptools.packages.find]
 include = ["gem_suite", "gem_suite.*"]
