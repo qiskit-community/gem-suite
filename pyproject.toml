@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["black", "ruff"]
+dev = ["black", "qiskit-aer", "ruff"]
 
 [tool.setuptools.packages.find]
 include = ["gem_suite", "gem_suite.*"]
