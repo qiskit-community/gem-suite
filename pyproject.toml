@@ -41,3 +41,10 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "*.pyi" = ["F403", "F405", "PYI001", "PYI002"]
+
+[tool.cibuildwheel]
+skip = ["*-musllinux_i686"]
+
+[tool.cibuildwheel.linux]
+before-all = "curl -sSf https://sh.rustup.rs | sh -s -- -y"
+environment = "PATH=$HOME/.cargo/bin:$PATH"
