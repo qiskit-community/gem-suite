@@ -1,4 +1,4 @@
-# GEM experiment suite
+# GEM Suite
 
 [![License](https://img.shields.io/github/license/Qiskit/qiskit-experiments.svg?style=popout-square)](https://opensource.org/licenses/Apache-2.0)
 
