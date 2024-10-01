@@ -14,11 +14,10 @@ This library is designed to work with, but not limited only to, IBM Quantum proc
 
 ## Installation
 
-This package can be installed from the downloaded repository using pip as
+This package can be installed with `pip` using the command
 
 ```bash
-cd gem-suite
-pip install .
+pip install gem-suite
 ```
 
 ## Example
