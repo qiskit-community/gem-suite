@@ -83,6 +83,7 @@ class GemExperiment(BaseExperiment):
     def _default_transpile_options(cls) -> Options:
         options = super()._default_transpile_options()
         options.optimization_level = 1
+        options.routing_method = "none"
         return options
 
     @classmethod
