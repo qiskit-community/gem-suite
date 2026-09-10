@@ -2,6 +2,9 @@
 
 [![License](https://img.shields.io/github/license/Qiskit/qiskit-experiments.svg?style=popout-square)](https://opensource.org/licenses/Apache-2.0)
 
+> [!NOTE]
+> This repository is under active development and the code here should not be considered stable. This is not an officially supported IBM Quantum software.
+
 The GEM (Generation of Entanglement by Measurement) protocol prepares a quantum state across many qubits using an efficient, measurement-based protocol.
 Generally, it is technical challenge to achieve this on current generation quantum devices because most preparation protocols are vulnerable to imperfections in gates and to noise. The protocol that realizes the Nishimori transition, also understood as a fault-tolerant threshold, is a constant depth method that demonstrates how measurement-based state preparation might be used on large-scale quantum devices exceeding a few hundred qubits.
 Through injecting coherent errors, the GEM experiment provides an estimate for how far below the error correction threshold a device is operating.
