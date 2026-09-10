@@ -22,6 +22,9 @@ setup(
             binding=Binding.PyO3,
         )
     ],
+    # Build a single wheel against the CPython limited API (abi3) that works on
+    # every supported Python version. This floor must be kept in sync with the
+    # pyo3 "abi3-py*" feature in Cargo.toml and requires-python in pyproject.toml.
     options={"bdist_wheel": {"py_limited_api": "cp310"}},
     long_description_content_type="text/markdown",
 )
