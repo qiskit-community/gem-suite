@@ -53,7 +53,10 @@ select = [
 "*.pyi" = ["F403", "F405", "PYI001", "PYI002"]
 
 [tool.cibuildwheel]
-skip = ["*-musllinux_i686"]
+# No 32-bit Linux wheels: qiskit publishes none, so they could never be
+# installed, and rustup-init for i686 is missing libatomic.so.1 in the
+# manylinux2014_i686 image.
+skip = ["*_i686"]
 
 [tool.cibuildwheel.linux]
 before-all = "curl -sSf https://sh.rustup.rs | sh -s -- -y"

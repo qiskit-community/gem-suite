@@ -10,12 +10,10 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-use std::str;
-
 use hashbrown::HashMap;
 use petgraph::stable_graph::StableUnGraph;
 use petgraph::visit::{EdgeRef, IntoEdgeReferences};
-use pyo3::{prelude::*, types::PyString};
+use pyo3::prelude::*;
 
 use super::graph_builder::build_plaquette_graph;
 use crate::graph::*;
@@ -60,10 +58,9 @@ impl WriteDot for NoisyPlaquetteNode {
 ///         Noise intensity is shown in the graph nodes as filled colors.
 #[pyfunction]
 pub fn visualize_plaquette_with_noise(
-    py: Python,
     plaquette_qubits_map: std::collections::BTreeMap<PlaquetteIndex, Vec<QubitIndex>>,
     noise_map: HashMap<usize, f64>,
-) -> PyResult<Option<PyObject>> {
+) -> String {
     let plaquette_graph = build_plaquette_graph(&plaquette_qubits_map);
     let mut noisy_graph = StableUnGraph::<NoisyPlaquetteNode, PlaquetteEdge>::with_capacity(
         plaquette_graph.node_count(),
@@ -79,8 +76,5 @@ pub fn visualize_plaquette_with_noise(
     for eref in plaquette_graph.edge_references() {
         noisy_graph.add_edge(eref.source(), eref.target(), *eref.weight());
     }
-    let buf = ungraph_to_dot(&noisy_graph);
-    Ok(Some(
-        PyString::new_bound(py, str::from_utf8(&buf)?).to_object(py),
-    ))
+    ungraph_to_dot(&noisy_graph)
 }

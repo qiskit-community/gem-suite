@@ -10,7 +10,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-use std::io::Write;
+use std::fmt::Write;
 
 use hashbrown::{HashMap, HashSet};
 
@@ -39,8 +39,8 @@ pub(crate) fn to_undirected(connectivity: &[(usize, usize)]) -> (Vec<usize>, Vec
 }
 
 /// Write dot script to feed the graphviz drawer for graph image generation.
-pub(crate) fn ungraph_to_dot<N: WriteDot, E: WriteDot>(graph: &StableUnGraph<N, E>) -> Vec<u8> {
-    let mut buf = Vec::<u8>::new();
+pub(crate) fn ungraph_to_dot<N: WriteDot, E: WriteDot>(graph: &StableUnGraph<N, E>) -> String {
+    let mut buf = String::new();
     writeln!(&mut buf, "graph {{").unwrap();
     writeln!(
         &mut buf,

@@ -35,10 +35,7 @@ use hashbrown::{HashMap, HashSet};
 use lazy_static::lazy_static;
 use petgraph::stable_graph::StableUnGraph;
 
-use pyo3::{
-    prelude::*,
-    types::{PyString, PyType},
-};
+use pyo3::{prelude::*, types::PyType};
 
 use crate::graph::*;
 use crate::utils::{to_undirected, ungraph_to_dot};
@@ -254,27 +251,18 @@ impl PyHeavyHexLattice {
     }
 
     /// Return dot script representing the annotated qubit lattice
-    pub fn qubit_graph_dot(&self, py: Python) -> PyResult<Option<PyObject>> {
-        let buf = ungraph_to_dot(&self.qubit_graph);
-        Ok(Some(
-            PyString::new_bound(py, str::from_utf8(&buf)?).to_object(py),
-        ))
+    pub fn qubit_graph_dot(&self) -> String {
+        ungraph_to_dot(&self.qubit_graph)
     }
 
     /// Return dot script representing the plaquette lattice
-    pub fn plaquette_graph_dot(&self, py: Python) -> PyResult<Option<PyObject>> {
-        let buf = ungraph_to_dot(&self.plaquette_graph);
-        Ok(Some(
-            PyString::new_bound(py, str::from_utf8(&buf)?).to_object(py),
-        ))
+    pub fn plaquette_graph_dot(&self) -> String {
+        ungraph_to_dot(&self.plaquette_graph)
     }
 
     /// Return dot script representing the annotated qubit graph for decoding
-    pub fn decode_graph_dot(&self, py: Python) -> PyResult<Option<PyObject>> {
-        let buf = ungraph_to_dot(&self.decode_graph);
-        Ok(Some(
-            PyString::new_bound(py, str::from_utf8(&buf)?).to_object(py),
-        ))
+    pub fn decode_graph_dot(&self) -> String {
+        ungraph_to_dot(&self.decode_graph)
     }
 
     /// Return annotated qubit dataclasses in this lattice.
