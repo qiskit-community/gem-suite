@@ -61,7 +61,10 @@ select = [
 # No 32-bit Linux wheels: qiskit publishes none, so they could never be
 # installed, and rustup-init for i686 is missing libatomic.so.1 in the
 # manylinux2014_i686 image.
-skip = ["*_i686"]
+#
+# No PyPy wheels: qiskit publishes none there either, so they could never be
+# installed, and PyO3 no longer supports PyPy 3.10.
+skip = ["*_i686", "pp*"]
 
 [tool.cibuildwheel.linux]
 before-all = "curl -sSf https://sh.rustup.rs | sh -s -- -y"
