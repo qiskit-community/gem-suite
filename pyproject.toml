@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "gem-suite"
 description = "Qiskit Experiments suite for generation of entanglement using measurements."
 version = "0.1.7.dev"
-requires-python = ">= 3.8"
+requires-python = ">= 3.10"
 authors = [{ name = "Naoki Kanazawa", email = "knzwnao@jp.ibm.com" }]
 readme = "README.md"
 license = { file = "LICENSE.txt" }
@@ -14,6 +14,11 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Rust",
     "Topic :: Scientific/Engineering :: Physics",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -33,12 +38,12 @@ include = ["gem_suite", "gem_suite.*"]
 
 [tool.black]
 line-length = 100
-target-version = ['py38', 'py39', 'py310', 'py311']
+target-version = ['py310', 'py311', 'py312', 'py313', 'py314']
 
 [tool.ruff]
 line-length = 105
 src = ["gem_suite", "setup.py", "tests"]
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = [
@@ -56,7 +61,10 @@ select = [
 # No 32-bit Linux wheels: qiskit publishes none, so they could never be
 # installed, and rustup-init for i686 is missing libatomic.so.1 in the
 # manylinux2014_i686 image.
-skip = ["*_i686"]
+#
+# No PyPy wheels: qiskit publishes none there either, so they could never be
+# installed, and PyO3 no longer supports PyPy 3.10.
+skip = ["*_i686", "pp*"]
 
 [tool.cibuildwheel.linux]
 before-all = "curl -sSf https://sh.rustup.rs | sh -s -- -y"

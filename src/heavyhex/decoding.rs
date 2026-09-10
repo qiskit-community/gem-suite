@@ -205,7 +205,7 @@ pub(crate) fn check_matrix_csc(
 ///     and f and g values associated with decoded magnetization.
 pub(super) fn decode_outcomes_pm(
     py: Python,
-    solver: PyObject,
+    solver: Py<PyAny>,
     lattice: &PyHeavyHexLattice,
     counts: &HashMap<String, usize>,
 ) -> DecodeOut {

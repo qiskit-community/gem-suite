@@ -13,7 +13,8 @@
 
 from __future__ import annotations
 
-from typing import Iterator, Callable, NamedTuple
+from typing import NamedTuple
+from collections.abc import Iterator, Callable
 
 import numpy as np
 from pymatching import Matching

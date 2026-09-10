@@ -10,6 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 """Analysis for prepared state magnetization."""
+
 from __future__ import annotations
 
 import pandas as pd
