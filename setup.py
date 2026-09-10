@@ -22,6 +22,6 @@ setup(
             binding=Binding.PyO3,
         )
     ],
-    options={"bdist_wheel": {"py_limited_api": "cp38"}},
+    options={"bdist_wheel": {"py_limited_api": "cp310"}},
     long_description_content_type="text/markdown",
 )

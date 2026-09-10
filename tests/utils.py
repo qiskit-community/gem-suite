@@ -10,6 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 """Decoder debugger with hard-coded Falcom coupling map."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -19,7 +20,7 @@ import numpy as np
 
 # pylint: disable=too-many-locals, disable=invalid-name
 def process_counts_debug(
-    counts: dict[str, int]
+    counts: dict[str, int],
 ) -> tuple[dict[str, int], list[float], list[float], tuple[float, float], tuple[float, float]]:
     """Generate reference decoded outcomes.
 

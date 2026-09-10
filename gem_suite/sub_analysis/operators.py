@@ -10,10 +10,11 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 """Analysis for prepared state magnetization."""
+
 from __future__ import annotations
 
 import warnings
-from typing import Callable
+from collections.abc import Callable
 
 import pandas as pd
 import numpy as np

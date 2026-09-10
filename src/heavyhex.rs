@@ -203,7 +203,7 @@ impl PyScheduledGate {
     }
 }
 
-#[pyclass]
+#[pyclass(skip_from_py_object)]
 #[derive(Debug, Clone)]
 /// Plaquette representation of heavy hex lattice devices.
 /// Graph node and edges are immediately annotated for GEM experiments.
@@ -458,7 +458,7 @@ impl PyHeavyHexLattice {
     pub fn decode_outcomes_pm(
         &self,
         py: Python,
-        solver: PyObject,
+        solver: Py<PyAny>,
         counts: HashMap<String, usize>,
         return_counts: bool,
     ) -> DecodePyOut {

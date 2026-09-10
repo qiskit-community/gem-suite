@@ -10,7 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from typing import Callable
+from collections.abc import Callable
 
 def visualize_plaquette_with_noise(
     plaquette_qubits_map: dict[int, list[int]],
@@ -50,9 +50,7 @@ class PyHeavyHexLattice:
     def connectivity(self) -> list[tuple[int, int]]: ...
     def filter(self, includes: list[int]) -> PyHeavyHexLattice: ...
     def build_gate_schedule(self, index: int) -> list[list[PyScheduledGate]]: ...
-    def decode_outcomes_fb(
-        self, counts: dict[str, int], return_counts: bool
-    ) -> tuple[
+    def decode_outcomes_fb(self, counts: dict[str, int], return_counts: bool) -> tuple[
         dict[str, int] | None,
         list[float],
         list[float],
