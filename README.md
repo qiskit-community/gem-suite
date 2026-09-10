@@ -1,6 +1,6 @@
 # GEM Suite
 
-[![License](https://img.shields.io/github/license/Qiskit/qiskit-experiments.svg?style=popout-square)](https://opensource.org/licenses/Apache-2.0)
+[![License](https://img.shields.io/github/license/qiskit-community/gem-suite.svg?style=popout-square)](https://opensource.org/licenses/Apache-2.0)
 
 > [!NOTE]
 > This repository is under active development and the code here should not be considered stable. This is not an officially supported IBM Quantum software.
@@ -11,7 +11,7 @@ Through injecting coherent errors, the GEM experiment provides an estimate for h
 
 All technical details are available on arXiv: <https://arxiv.org/abs/2309.02863>
 
-Because of the computationally intensive subroutine responsible for decoding the measurement outcomes, this library is mostly implemented in Rust programming language for performance. The core library is interfaced with [Qiskit Experiments](https://github.com/Qiskit-Extensions/qiskit-experiments) via [PyO3](https://docs.rs/pyo3/latest/pyo3/index.html) to produce experiment circuits with the Qiskit model and analyze the results. We support two minimum weight perfect matching decoders; [pymatching](https://github.com/oscarhiggott/PyMatching) and [fusion-blossom](https://github.com/yuewuo/fusion-blossom).
+Because of the computationally intensive subroutine responsible for decoding the measurement outcomes, this library is mostly implemented in Rust programming language for performance. The core library is interfaced with [Qiskit Experiments](https://github.com/qiskit-community/qiskit-experiments) via [PyO3](https://docs.rs/pyo3/latest/pyo3/index.html) to produce experiment circuits with the Qiskit model and analyze the results. We support two minimum weight perfect matching decoders; [pymatching](https://github.com/oscarhiggott/PyMatching) and [fusion-blossom](https://github.com/yuewuo/fusion-blossom).
 
 This library is designed to work with, but not limited only to, IBM Quantum processors.
 
