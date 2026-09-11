@@ -27,11 +27,10 @@ dependencies = [
     "pymatching",
     "qiskit >= 1.0",
     "qiskit-experiments >= 0.7",
-    "qiskit-ibm-runtime",
 ]
 
 [project.optional-dependencies]
-dev = ["black", "qiskit-aer", "ruff"]
+dev = ["black", "qiskit-aer", "qiskit-ibm-runtime", "ruff"]
 
 [tool.setuptools.packages.find]
 include = ["gem_suite", "gem_suite.*"]

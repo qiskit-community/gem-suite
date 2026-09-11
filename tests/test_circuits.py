@@ -15,10 +15,11 @@ import unittest
 from math import pi
 
 import numpy as np
-from qiskit_ibm_runtime.fake_provider import FakeGeneva
 from qiskit import QuantumCircuit
 
 from gem_suite.experiments import GemExperiment
+
+from .utils import falcon_backend
 
 
 class TestCircuit(unittest.TestCase):
@@ -26,7 +27,7 @@ class TestCircuit(unittest.TestCase):
 
     def test_generate_circuit(self):
         """Test comparing virtual circuits."""
-        exp = GemExperiment(range(2), backend=FakeGeneva())
+        exp = GemExperiment(range(2), backend=falcon_backend())
 
         exp.set_experiment_options(schedule_idx=10)
         test_circ = exp.parameterized_circuits()[0]
@@ -53,7 +54,7 @@ class TestCircuit(unittest.TestCase):
 
     def test_qubit_layout(self):
         """Test physical qubit index list."""
-        exp = GemExperiment(range(2), backend=FakeGeneva())
+        exp = GemExperiment(range(2), backend=falcon_backend())
         self.assertListEqual(
             list(exp.physical_qubits),
             [
@@ -83,7 +84,7 @@ class TestCircuit(unittest.TestCase):
 
     def test_parameter_list(self):
         """Test parameter (theta) list to scan."""
-        exp = GemExperiment(range(2), backend=FakeGeneva())
+        exp = GemExperiment(range(2), backend=falcon_backend())
 
         np.testing.assert_array_almost_equal(
             exp.parameters(),
