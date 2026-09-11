@@ -9,13 +9,84 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
-"""Decoder debugger with hard-coded Falcom coupling map."""
+"""Test utilities, including a decoder debugger with hard-coded Falcon coupling map."""
 
 from __future__ import annotations
 
 from collections import defaultdict
 
 import numpy as np
+from qiskit.providers.fake_provider import GenericBackendV2
+from qiskit.transpiler import CouplingMap
+
+#: Coupling map of a 27 qubit Falcon processor.
+FALCON_COUPLING_MAP = [
+    (0, 1),
+    (1, 0),
+    (1, 2),
+    (1, 4),
+    (2, 1),
+    (2, 3),
+    (3, 2),
+    (3, 5),
+    (4, 1),
+    (4, 7),
+    (5, 3),
+    (5, 8),
+    (6, 7),
+    (7, 4),
+    (7, 6),
+    (7, 10),
+    (8, 5),
+    (8, 9),
+    (8, 11),
+    (9, 8),
+    (10, 7),
+    (10, 12),
+    (11, 8),
+    (11, 14),
+    (12, 10),
+    (12, 13),
+    (12, 15),
+    (13, 12),
+    (13, 14),
+    (14, 11),
+    (14, 13),
+    (14, 16),
+    (15, 12),
+    (15, 18),
+    (16, 14),
+    (16, 19),
+    (17, 18),
+    (18, 15),
+    (18, 17),
+    (18, 21),
+    (19, 16),
+    (19, 20),
+    (19, 22),
+    (20, 19),
+    (21, 18),
+    (21, 23),
+    (22, 19),
+    (22, 25),
+    (23, 21),
+    (23, 24),
+    (24, 23),
+    (24, 25),
+    (25, 22),
+    (25, 24),
+    (25, 26),
+    (26, 25),
+]
+
+
+def falcon_backend() -> GenericBackendV2:
+    """Return a mock backend with the connectivity of a 27 qubit Falcon processor."""
+    return GenericBackendV2(
+        num_qubits=27,
+        coupling_map=CouplingMap(FALCON_COUPLING_MAP),
+        seed=0,
+    )
 
 
 # pylint: disable=too-many-locals, disable=invalid-name
