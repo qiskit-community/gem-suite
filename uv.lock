@@ -690,7 +690,7 @@ wheels = [
 
 [[package]]
 name = "gem-suite"
-version = "0.1.7.dev0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "pymatching" },
