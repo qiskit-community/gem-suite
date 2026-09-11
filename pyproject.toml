@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "wheel", "setuptools-rust"]
+requires = ["setuptools >= 77", "wheel", "setuptools-rust"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,9 +9,9 @@ version = "0.1.7.dev"
 requires-python = ">= 3.10"
 authors = [{ name = "Naoki Kanazawa", email = "knzwnao@jp.ibm.com" }]
 readme = "README.md"
-license = { file = "LICENSE.txt" }
+license = "Apache-2.0"
+license-files = ["LICENSE.txt"]
 classifiers = [
-    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.10",
@@ -28,6 +28,11 @@ dependencies = [
     "qiskit >= 2, < 3",
     "qiskit-experiments >= 0.7",
 ]
+
+[project.urls]
+Homepage = "https://github.com/qiskit-community/gem-suite"
+Repository = "https://github.com/qiskit-community/gem-suite"
+Issues = "https://github.com/qiskit-community/gem-suite/issues"
 
 [project.optional-dependencies]
 dev = ["black", "qiskit-aer", "qiskit-ibm-runtime", "ruff"]
