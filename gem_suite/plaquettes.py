@@ -16,13 +16,14 @@
 from __future__ import annotations
 
 from typing import NamedTuple
-from collections.abc import Iterator, Callable
+from collections.abc import Iterable, Iterator, Callable
 
 import numpy as np
 from pymatching import Matching
 from scipy.sparse import csc_matrix
 from qiskit_experiments.framework import FigureData
 from qiskit.providers import BackendV2
+from qiskit.transpiler import CouplingMap
 
 from gem_suite.gem_core import PyHeavyHexLattice, PyQubit, PyPlaquette, PyScheduledGate
 from .plot_utils import dot_to_mplfigure
@@ -54,17 +55,29 @@ class PlaquetteLattice:
 
     @classmethod
     def from_backend(cls, backend: BackendV2):
-        """Create new instance from Qiskit Backend."""
-        if hasattr(backend, "configuration"):
-            cmap = [tuple(qs) for qs in backend.configuration().coupling_map]
-        else:
-            cmap = list(backend.coupling_map)
-        return PlaquetteLattice(PyHeavyHexLattice(cmap))
+        """Create new instance from Qiskit Backend.
+
+        Args:
+            backend: Qiskit backend to build the plaquette lattice from.
+
+        Returns:
+            New plaquette lattice instance.
+        """
+        return cls.from_coupling_map(backend.coupling_map)
 
     @classmethod
-    def from_coupling_map(cls, coupling_map: list[tuple[int, int]]):
-        """Create new instance from device coupling map."""
-        return PlaquetteLattice(PyHeavyHexLattice([tuple(qs) for qs in coupling_map]))
+    def from_coupling_map(cls, coupling_map: CouplingMap | Iterable[tuple[int, int]]):
+        """Create new instance from device coupling map.
+
+        Args:
+            coupling_map: Qiskit coupling map, or any iterable of qubit pairs.
+                The direction of each pair is ignored; the lattice is built
+                from the undirected connectivity.
+
+        Returns:
+            New plaquette lattice instance.
+        """
+        return cls(PyHeavyHexLattice([tuple(qs) for qs in coupling_map]))
 
     def qubits(self) -> Iterator[PyQubit]:
         """Yield annotated qubit dataclasses."""
