@@ -30,7 +30,7 @@ For the case of IBM Quantum processors with heavy hexagonal lattices,
 a single plaquette contains 12 qubits and a single IBM Eagle processor has 18 plaquettes.
 This is an efficient compact representation of a quantum processor with a few hundred qubits. We anticipate very minor changes to this representation when scaling up to larger devices.
 
-![image](./images/plaquette_eagle.png)
+![image](https://raw.githubusercontent.com/qiskit-community/gem-suite/main/images/plaquette_eagle.png)
 
 We can partly reproduce experiments in the publication with a few lines of code using the Qiskit Experiments framework.
 
@@ -44,8 +44,8 @@ gem_exp = GemExperiment(plaquettes=range(18), backend=backend)
 exp_data = gem_exp.run().block_for_results()
 ```
 
-Please see [our example notebook](./examples/01_gem_benchmark.ipynb) for the complete workflow.
+Please see [our example notebook](https://github.com/qiskit-community/gem-suite/blob/main/examples/01_gem_benchmark.ipynb) for the complete workflow.
 
 ## License
 
-[Apache License 2.0](LICENSE.txt)
+[Apache License 2.0](https://github.com/qiskit-community/gem-suite/blob/main/LICENSE.txt)
